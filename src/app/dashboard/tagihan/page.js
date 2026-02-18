@@ -1,6 +1,5 @@
 "use client";
 
-// Perubahan pemicu untuk sinkronisasi Vercel
 import { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
