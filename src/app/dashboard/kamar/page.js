@@ -25,22 +25,36 @@ export default function KamarPage() {
     }, [selectedKos, kosList]);
 
     const fetchData = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data: kos } = await supabase.from("kos").select("*").eq("user_id", user.id).order("nama_kos");
-        setKosList(kos || []);
-        setLoading(false);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data: kos } = await supabase.from("kos").select("*").order("nama_kos");
+            setKosList(kos || []);
+        } catch (error) {
+            console.error("Error fetching kos data:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const fetchKamar = async () => {
-        let query = supabase.from("kamar").select("*, kos!inner(nama_kos, user_id)");
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        query = query.eq("kos.user_id", user.id);
-        if (selectedKos) query = query.eq("kos_id", selectedKos);
-        query = query.order("nomor");
-        const { data } = await query;
-        setKamarList(data || []);
+        try {
+            // Rely on RLS for filtering by owner. 
+            // Just join 'kos' to get the name.
+            let query = supabase.from("kamar").select("*, kos(nama_kos)");
+
+            if (selectedKos) {
+                query = query.eq("kos_id", selectedKos);
+            }
+
+            query = query.order("nomor");
+            const { data, error } = await query;
+
+            if (error) throw error;
+            setKamarList(data || []);
+        } catch (error) {
+            console.error("Error fetching kamar data:", error);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -103,8 +117,8 @@ export default function KamarPage() {
                 const isKosong = val === "Kosong" || val === "kosong";
                 return (
                     <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${!isKosong
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-slate-500/20 text-slate-400"
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "bg-slate-500/20 text-slate-400"
                         }`}>
                         {val}
                     </span>

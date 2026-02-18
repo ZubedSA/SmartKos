@@ -28,7 +28,6 @@ const adminMenuItems = [
 
 export default function AdminLayout({ children }) {
     const [user, setUser] = useState(null);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const router = useRouter();
     const supabase = createClient();
 
@@ -60,22 +59,11 @@ export default function AdminLayout({ children }) {
                 title="Admin Panel"
                 user={user}
                 onLogout={handleLogout}
-                isOpen={mobileMenuOpen}
-                onClose={() => setMobileMenuOpen(false)}
             />
 
             {/* Mobile header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between px-4 z-40">
-                <button
-                    onClick={() => setMobileMenuOpen(true)}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#334155] transition-colors"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-center px-4 z-40">
                 <h1 className="text-lg font-bold gradient-text">SmartKos Admin</h1>
-                <div className="w-10" />
             </div>
 
             <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">

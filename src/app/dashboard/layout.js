@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import MobileNav from "@/components/MobileNav";
 import { createClient } from "@/lib/supabase";
 
 const ownerMenuItems = [
@@ -52,6 +53,24 @@ const ownerMenuItems = [
         ),
     },
     {
+        href: "/dashboard/pemasukan",
+        label: "Pemasukan",
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+        ),
+    },
+    {
+        href: "/dashboard/operasional",
+        label: "Operasional",
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        ),
+    },
+    {
         href: "/dashboard/whatsapp",
         label: "Pengaturan WA",
         icon: (
@@ -64,9 +83,12 @@ const ownerMenuItems = [
 
 export default function DashboardLayout({ children }) {
     const [user, setUser] = useState(null);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const router = useRouter();
+    const pathname = usePathname();
     const supabase = createClient();
+
+    // Check if we are on the main dashboard page
+    const isMainDashboard = pathname === "/dashboard";
 
     useEffect(() => {
         const getUser = async () => {
@@ -90,33 +112,27 @@ export default function DashboardLayout({ children }) {
     };
 
     return (
-        <div className="min-h-screen bg-[#0f172a]">
+        <div className="min-h-screen bg-[#0f172a] pb-16 lg:pb-0">
             <Sidebar
                 items={ownerMenuItems}
                 title="Owner Panel"
                 user={user}
                 onLogout={handleLogout}
-                isOpen={mobileMenuOpen}
-                onClose={() => setMobileMenuOpen(false)}
             />
 
-            {/* Mobile header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between px-4 z-40">
-                <button
-                    onClick={() => setMobileMenuOpen(true)}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#334155] transition-colors"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
-                <h1 className="text-lg font-bold gradient-text">SmartKos</h1>
-                <div className="w-10" />
-            </div>
+            {/* Mobile header - Render standard header only if NOT on main dashboard */}
+            {!isMainDashboard && (
+                <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-center px-4 z-40">
+                    <h1 className="text-lg font-bold gradient-text">SmartKos</h1>
+                </div>
+            )}
+
+            {/* Mobile Bottom Navigation */}
+            <MobileNav />
 
             {/* Main content */}
-            <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
-                <div className="p-6 lg:p-8">
+            <main className={`lg:ml-64 ${!isMainDashboard ? 'pt-16' : ''} lg:pt-0 min-h-screen`}>
+                <div className="p-4 lg:p-8">
                     {children}
                 </div>
             </main>

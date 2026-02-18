@@ -17,17 +17,27 @@ export default function PenyewaPage() {
     useEffect(() => { fetchData(); }, []);
 
     const fetchData = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        const [penyewaRes, kamarRes] = await Promise.all([
-            supabase.from("penyewa").select("*, kamar!inner(nomor, harga, kos!inner(nama_kos, user_id))").eq("kamar.kos.user_id", user.id).order("created_at", { ascending: false }),
-            // Removed .eq("status", "kosong") to allow selection of occupied rooms
-            supabase.from("kamar").select("*, kos!inner(nama_kos, user_id)").eq("kos.user_id", user.id).order("nomor"),
-        ]);
-        setPenyewaList(penyewaRes.data || []);
-        setKamarList(kamarRes.data || []);
-        setLoading(false);
+            // Simplify: remove !inner nested joins and filter by related user_id if RLS is slow,
+            // or just rely on RLS if it's solid.
+            const [penyewaRes, kamarRes] = await Promise.all([
+                supabase.from("penyewa").select("*, kamar(nomor, harga, kos(nama_kos))").order("created_at", { ascending: false }),
+                supabase.from("kamar").select("*, kos(nama_kos)").order("nomor"),
+            ]);
+
+            if (penyewaRes.error) throw penyewaRes.error;
+            if (kamarRes.error) throw kamarRes.error;
+
+            setPenyewaList(penyewaRes.data || []);
+            setKamarList(kamarRes.data || []);
+        } catch (error) {
+            console.error("Error fetching penyewa dashboard data:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const updateKamarStatus = async (kamarId) => {

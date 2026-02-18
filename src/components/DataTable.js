@@ -1,4 +1,4 @@
-export default function DataTable({ columns, data, actions, emptyMessage = "Belum ada data" }) {
+export default function DataTable({ columns, data, actions, emptyMessage = "Belum ada data", onRowDoubleClick }) {
     if (!data || data.length === 0) {
         return (
             <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-12 text-center">
@@ -30,7 +30,11 @@ export default function DataTable({ columns, data, actions, emptyMessage = "Belu
                     </thead>
                     <tbody className="divide-y divide-[#334155]">
                         {data.map((row, idx) => (
-                            <tr key={row.id || idx} className="hover:bg-[#334155]/50 transition-colors">
+                            <tr
+                                key={row.id || idx}
+                                onDoubleClick={() => onRowDoubleClick && onRowDoubleClick(row)}
+                                className={`hover:bg-[#334155]/50 transition-colors ${onRowDoubleClick ? "cursor-pointer select-none" : ""}`}
+                            >
                                 {columns.map((col) => (
                                     <td key={col.key} className="px-6 py-4 text-sm text-slate-300 whitespace-nowrap">
                                         {col.render ? col.render(row[col.key], row) : row[col.key]}
