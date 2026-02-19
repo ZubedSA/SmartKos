@@ -36,13 +36,16 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
@@ -69,9 +72,69 @@ body {
 
 /* Pulse animation for badges */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
+
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Modal & Popup System */
+.modal-overlay {
+  @apply fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md;
+}
+
+.modal-box {
+  @apply w-full bg-[#1e293b]/95 border border-slate-700/50 rounded-3xl shadow-2xl shadow-black/50 overflow-hidden;
+  backdrop-filter: blur(16px);
+}
+
+.modal-header {
+  @apply flex items-center justify-between p-6 border-b border-slate-700/50;
+}
+
+.modal-content {
+  @apply p-6 overflow-y-auto;
+}
+
+.modal-footer {
+  @apply flex items-center justify-end gap-3 p-6 border-t border-slate-700/50 bg-slate-800/20;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-overlay-in {
+  animation: overlay-in 0.3s ease-out;
 }

@@ -35,26 +35,31 @@ export async function middleware(request) {
     const { data: { user } } = await supabase.auth.getUser();
     const pathname = request.nextUrl.pathname;
 
-    // Public routes
-    const publicRoutes = ["/login", "/register"];
+    // Public routes (accessible without login or with login but pending)
+    const publicRoutes = ["/login", "/register", "/pending-approval"];
     if (publicRoutes.includes(pathname)) {
         if (user) {
-            // Already logged in, try to redirect to dashboard
+            // Already logged in, check approval status for owners
             const { data: profile } = await supabase
                 .from("users")
-                .select("role")
+                .select("role, is_approved")
                 .eq("id", user.id)
                 .single();
 
-            // If profile not found, stay on login (don't redirect to prevent loop)
-            if (!profile) {
+            if (!profile) return response;
+
+            // If user is at /pending-approval and still not approved, let them stay
+            if (pathname === "/pending-approval" && profile.role === "owner" && !profile.is_approved) {
                 return response;
             }
 
+            // Redirect approved users/admins away from public routes
             if (profile.role === "admin") {
                 return NextResponse.redirect(new URL("/admin", request.url));
             }
-            return NextResponse.redirect(new URL("/dashboard", request.url));
+            if (profile.is_approved) {
+                return NextResponse.redirect(new URL("/dashboard", request.url));
+            }
         }
         return response;
     }
@@ -67,7 +72,7 @@ export async function middleware(request) {
     // Get user profile
     const { data: profile } = await supabase
         .from("users")
-        .select("role, subscription_status, subscription_expired_at")
+        .select("role, subscription_status, subscription_expired_at, is_approved")
         .eq("id", user.id)
         .single();
 
@@ -77,13 +82,18 @@ export async function middleware(request) {
         return response;
     }
 
+    // Approval check for owners
+    if (profile.role === "owner" && !profile.is_approved && pathname !== "/pending-approval") {
+        return NextResponse.redirect(new URL("/pending-approval", request.url));
+    }
+
     // Admin routes protection
     if (pathname.startsWith("/admin") && profile.role !== "admin") {
         return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Owner subscription check (skip for admin and billing page)
-    if (profile.role === "owner" && pathname !== "/billing") {
+    // Owner subscription check (skip for admin, billing page, and pending-approval)
+    if (profile.role === "owner" && pathname !== "/billing" && pathname !== "/pending-approval") {
         const isExpired =
             profile.subscription_status === "inactive" ||
             (profile.subscription_expired_at &&
@@ -109,5 +119,6 @@ export const config = {
         "/billing",
         "/login",
         "/register",
+        "/pending-approval",
     ],
 };

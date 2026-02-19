@@ -91,7 +91,7 @@ export default function RegisterPage() {
 
                     {success && (
                         <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-xl text-sm">
-                            Registrasi berhasil! Mengalihkan ke dashboard...
+                            Registrasi berhasil! Menunggu persetujuan admin...
                         </div>
                     )}
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import { createClient } from "@/lib/supabase";
 
 export default function AdminUsersPage() {
@@ -13,6 +14,16 @@ export default function AdminUsersPage() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [expiryDate, setExpiryDate] = useState("");
 
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        type: "info",
+        title: "",
+        message: "",
+        onConfirm: () => { },
+        loading: false
+    });
+
     // Reset Password State
     const [resetPassword, setResetPassword] = useState("");
     const [resetLoading, setResetLoading] = useState(false);
@@ -22,6 +33,7 @@ export default function AdminUsersPage() {
     useEffect(() => { fetchUsers(); }, []);
 
     const fetchUsers = async () => {
+        setLoading(true);
         const { data } = await supabase
             .from("users")
             .select("*")
@@ -31,10 +43,22 @@ export default function AdminUsersPage() {
         setLoading(false);
     };
 
-    const toggleStatus = async (user) => {
-        const newStatus = user.subscription_status === "active" ? "inactive" : "active";
-        await supabase.from("users").update({ subscription_status: newStatus }).eq("id", user.id);
-        fetchUsers();
+    const toggleStatus = (user) => {
+        const isActive = user.subscription_status === "active";
+        setConfirmModal({
+            isOpen: true,
+            type: isActive ? "warning" : "success",
+            title: isActive ? "Nonaktifkan Akun" : "Aktifkan Akun",
+            message: `Apakah Anda yakin ingin ${isActive ? 'menonaktifkan' : 'mengaktifkan'} akun ${user.name}?`,
+            confirmText: isActive ? "Ya, Nonaktifkan" : "Ya, Aktifkan",
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, loading: true }));
+                const newStatus = isActive ? "inactive" : "active";
+                await supabase.from("users").update({ subscription_status: newStatus }).eq("id", user.id);
+                await fetchUsers();
+                setConfirmModal(prev => ({ ...prev, isOpen: false, loading: false }));
+            }
+        });
     };
 
     const openExpiryModal = (user) => {
@@ -181,35 +205,62 @@ export default function AdminUsersPage() {
             )}
 
             {/* Expiry Modal */}
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Set Masa Aktif Subscription" size="sm">
-                <form onSubmit={handleSetExpiry} className="space-y-5">
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title="Set Masa Aktif Subscription"
+                size="sm"
+                footer={(
+                    <>
+                        <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white border border-[#334155] hover:bg-[#334155] transition-colors">
+                            Batal
+                        </button>
+                        <button onClick={handleSetExpiry} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all">
+                            Simpan
+                        </button>
+                    </>
+                )}
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-400">
+                        Set tanggal berakhir subscription untuk <span className="text-white font-medium">{selectedUser?.name}</span>
+                    </p>
                     <div>
-                        <p className="text-sm text-slate-400 mb-4">
-                            Set tanggal berakhir subscription untuk <span className="text-white font-medium">{selectedUser?.name}</span>
-                        </p>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Tanggal Berakhir</label>
                         <input
                             type="date"
                             value={expiryDate}
                             onChange={(e) => setExpiryDate(e.target.value)}
                             required
-                            className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
                     </div>
-                    <div className="flex gap-3 justify-end">
-                        <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white border border-[#334155] hover:bg-[#334155] transition-colors">
-                            Batal
-                        </button>
-                        <button type="submit" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all">
-                            Simpan
-                        </button>
-                    </div>
-                </form>
+                </div>
             </Modal>
 
             {/* Reset Password Modal */}
-            <Modal isOpen={showResetModal} onClose={() => setShowResetModal(false)} title="Reset Password User" size="sm">
-                <form onSubmit={handleResetPassword} className="space-y-5">
+            <Modal
+                isOpen={showResetModal}
+                onClose={() => setShowResetModal(false)}
+                title="Reset Password User"
+                size="sm"
+                footer={(
+                    <>
+                        <button type="button" onClick={() => setShowResetModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white border border-[#334155] hover:bg-[#334155] transition-colors">
+                            Batal
+                        </button>
+                        <button
+                            onClick={handleResetPassword}
+                            disabled={resetLoading}
+                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-600 text-white font-medium hover:from-red-600 hover:to-orange-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {resetLoading && <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                            Reset Password
+                        </button>
+                    </>
+                )}
+            >
+                <div className="space-y-5">
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
                         <p className="text-sm text-amber-400">
                             Warning: Password user <b>{selectedUser?.name}</b> akan diganti secara paksa.
@@ -224,24 +275,16 @@ export default function AdminUsersPage() {
                             required
                             minLength={6}
                             placeholder="Minimal 6 karakter"
-                            className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
                     </div>
-                    <div className="flex gap-3 justify-end">
-                        <button type="button" onClick={() => setShowResetModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white border border-[#334155] hover:bg-[#334155] transition-colors">
-                            Batal
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={resetLoading}
-                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-600 text-white font-medium hover:from-red-600 hover:to-orange-700 transition-all disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {resetLoading && <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                            Reset Password
-                        </button>
-                    </div>
-                </form>
+                </div>
             </Modal>
+
+            <ConfirmationModal
+                {...confirmModal}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+            />
         </div>
     );
 }

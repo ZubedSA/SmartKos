@@ -89,21 +89,22 @@ export default function DashboardPage() {
 
     return (
         <div className="pb-20 lg:pb-0">
-            {/* Mobile Top Section (Premium Deep Blue) */}
-            <div className="lg:hidden bg-gradient-to-b from-[#0e63ad] to-[#0b518e] pt-4 pb-16 px-4 rounded-b-[2.5rem]">
+            {/* Mobile Top Section (Premium Deep Purple) */}
+            <div className="lg:hidden bg-gradient-to-b from-[#2e1065] to-[#1e1b4b] pt-4 pb-16 px-4 rounded-b-[2.5rem]">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-semibold">
+                        <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-semibold shadow-lg">
                             U
                         </div>
                         <div>
-                            <p className="text-white/80 text-xs">Selamat Datang,</p>
-                            <p className="text-white font-bold text-sm">Owner Kos</p>
+                            <p className="text-white/60 text-[10px] uppercase tracking-widest font-bold">Selamat Datang,</p>
+                            <p className="text-white font-black text-sm">Owner Kos</p>
                         </div>
                     </div>
                     <div className="flex gap-4">
-                        <button className="text-white">
+                        <button className="text-white/80 hover:text-white transition-colors relative">
+                            <span className="absolute top-0 right-0 w-2 h-2 bg-pink-500 rounded-full border border-[#2e1065]"></span>
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                             </svg>
@@ -113,43 +114,46 @@ export default function DashboardPage() {
 
                 {/* Main Stats (Income/Occupancy) */}
                 <div className="text-white mb-4">
-                    <p className="text-white/80 text-sm mb-1">Total Tagihan Belum Lunas</p>
-                    <h2 className="text-3xl font-bold">Rp {stats.tagihanBelum.toLocaleString('id-ID')}</h2>
+                    <p className="text-white/60 text-xs font-medium mb-1">Total Tagihan Belum Lunas</p>
+                    <h2 className="text-4xl font-black tracking-tight flex items-baseline gap-1">
+                        <span className="text-lg font-bold text-white/50">Rp</span>
+                        {stats.tagihanBelum.toLocaleString('id-ID')}
+                    </h2>
                 </div>
 
                 {/* Top Action Buttons */}
-                <div className="flex justify-between gap-4 mt-6">
-                    <Link href="/dashboard/pemasukan" className="flex flex-col items-center gap-2 text-white/90">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex justify-between gap-4 mt-8">
+                    <Link href="/dashboard/pemasukan" className="flex flex-col items-center gap-2 group">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white group-active:scale-95 transition-all shadow-xl">
+                            <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                         </div>
-                        <span className="text-xs font-medium">Pemasukan</span>
+                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-tighter">Pemasukan</span>
                     </Link>
-                    <Link href="/dashboard/operasional" className="flex flex-col items-center gap-2 text-white/90">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <Link href="/dashboard/operasional" className="flex flex-col items-center gap-2 group">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white group-active:scale-95 transition-all shadow-xl">
+                            <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
-                        <span className="text-xs font-medium">Operasional</span>
+                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-tighter">Operasional</span>
                     </Link>
-                    <Link href="/dashboard/tagihan" className="flex flex-col items-center gap-2 text-white/90">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    <Link href="/dashboard/laporan" className="flex flex-col items-center gap-2 group">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white group-active:scale-95 transition-all shadow-xl">
+                            <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                         </div>
-                        <span className="text-xs font-medium">Tagihan</span>
+                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-tighter">Laporan</span>
                     </Link>
-                    <button className="flex flex-col items-center gap-2 text-white/90">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button className="flex flex-col items-center gap-2 group">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white group-active:scale-95 transition-all shadow-xl">
+                            <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                             </svg>
                         </div>
-                        <span className="text-xs font-medium">Lainnya</span>
+                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-tighter">Lainnya</span>
                     </button>
                 </div>
             </div>
@@ -197,6 +201,14 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-[11px] text-slate-300 text-center leading-tight">Data<br />Penyewa</span>
                 </a>
+                <a href="/dashboard/laporan" className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-2xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <span className="text-[11px] text-slate-300 text-center leading-tight">Laporan</span>
+                </a>
                 <a href="/dashboard/tagihan" className="flex flex-col items-center gap-2">
                     <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,15 +217,7 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-[11px] text-slate-300 text-center leading-tight">Buat<br />Tagihan</span>
                 </a>
-                <a href="#" className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-2xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <span className="text-[11px] text-slate-300 text-center leading-tight">Laporan</span>
-                </a>
-                <a href="#" className="flex flex-col items-center gap-2">
+                <a href="/dashboard/kelola" className="flex flex-col items-center gap-2">
                     <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -340,24 +344,36 @@ export default function DashboardPage() {
                 {/* Quick Actions */}
                 <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6">
                     <h2 className="text-lg font-semibold text-white mb-4">Aksi Cepat</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                         <a href="/dashboard/kos" className="flex items-center gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Tambah Kos Baru
+                            <span className="font-medium">Tambah Kos</span>
                         </a>
                         <a href="/dashboard/penyewa" className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                             </svg>
-                            Tambah Penyewa
+                            <span className="font-medium">Tambah Penyewa</span>
                         </a>
                         <a href="/dashboard/tagihan" className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
-                            Generate Tagihan
+                            <span className="font-medium">Buat Tagihan</span>
+                        </a>
+                        <a href="/dashboard/operasional" className="flex items-center gap-3 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="font-medium">Catat Biaya</span>
+                        </a>
+                        <a href="/dashboard/laporan" className="flex items-center gap-3 p-4 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-all">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="font-medium">Lihat Laporan</span>
                         </a>
                     </div>
                 </div>

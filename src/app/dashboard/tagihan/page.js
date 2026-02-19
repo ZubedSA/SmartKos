@@ -20,6 +20,7 @@ export default function TagihanPage() {
     const [activeTab, setActiveTab] = useState("belum"); // 'belum' or 'lunas'
     const [selectedTagihan, setSelectedTagihan] = useState(null);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [settleLoading, setSettleLoading] = useState(false);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState(null);
 
@@ -32,7 +33,6 @@ export default function TagihanPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Simplified select relying on RLS
             const { data, error } = await supabase
                 .from("tagihan")
                 .select("*, penyewa(id, nama, no_hp, jatuh_tempo, kamar(nomor, harga, kos(nama_kos)))")
@@ -66,7 +66,6 @@ export default function TagihanPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Get all penyewa (RLS will filter by owner)
             const { data: penyewaList, error } = await supabase
                 .from("penyewa")
                 .select("*, kamar(nomor, harga, kos(user_id))");
@@ -79,7 +78,6 @@ export default function TagihanPage() {
                 return;
             }
 
-            // Check existing tagihan for this month
             const existingIds = tagihanList
                 .filter(t => t.bulan === selectedBulan)
                 .map(t => t.penyewa_id);
@@ -112,6 +110,7 @@ export default function TagihanPage() {
 
     const handleSettlePayment = async () => {
         if (!selectedTagihan) return;
+        setSettleLoading(true);
         try {
             const { error } = await supabase
                 .from("tagihan")
@@ -119,11 +118,12 @@ export default function TagihanPage() {
                 .eq("id", selectedTagihan.id);
 
             if (error) throw error;
-            alert("Pembayaran berhasil diselesaikan!");
             setShowPaymentModal(false);
             fetchTagihan();
         } catch (error) {
             alert("Gagal memproses pembayaran: " + error.message);
+        } finally {
+            setSettleLoading(false);
         }
     };
 
@@ -158,9 +158,7 @@ export default function TagihanPage() {
         const message = replacePlaceholders(waTemplate, data);
         const link = generateWhatsAppLink(tagihan.penyewa.no_hp, message);
 
-        // Update tanggal kirim
         await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
-
         window.open(link, "_blank");
         fetchTagihan();
     };
@@ -197,11 +195,28 @@ export default function TagihanPage() {
 
     return (
         <div className="pb-24 lg:pb-0">
-            {/* Global style for printing */}
             <style jsx global>{`
                 @media print {
-                    nav, .lg\\:pb-0, .pb-24, button, .flex, .bg-\\[\\#1e293b\\], .border, select, .p-1 {
+                    nav, sidebar, .lg\\:pb-0, .pb-24, button, .flex, .bg-\\[\\#1e293b\\], .border, select, .p-1, .modal-header, .modal-footer {
                         display: none !important;
+                    }
+                    .modal-overlay {
+                        background: transparent !important;
+                        backdrop-filter: none !important;
+                        padding: 0 !important;
+                        position: relative !important;
+                        z-index: auto !important;
+                    }
+                    .modal-box {
+                        box-shadow: none !important;
+                        border: none !important;
+                        background: white !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
+                    }
+                    .modal-content {
+                        max-height: none !important;
+                        padding: 0 !important;
                     }
                     .print-only {
                         display: block !important;
@@ -211,7 +226,6 @@ export default function TagihanPage() {
                         width: 100% !important;
                         background: white !important;
                         color: black !important;
-                        padding: 40px !important;
                     }
                     body {
                         background: white !important;
@@ -243,15 +257,15 @@ export default function TagihanPage() {
                 </button>
             </div>
 
-            {/* Generate Section (Only show on 'Belum Lunas' tab for clarity) */}
+            {/* Generate Section */}
             {activeTab === "belum" && (
-                <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6 mb-6">
+                <div className="bg-[#1e293b]/50 border border-[#334155]/50 backdrop-blur-sm rounded-2xl p-6 mb-6">
                     <h3 className="text-sm font-semibold text-white mb-4">Generate Tagihan Bulanan</h3>
                     <div className="flex flex-col sm:flex-row gap-3">
                         <select
                             value={selectedBulan}
                             onChange={(e) => setSelectedBulan(e.target.value)}
-                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         >
                             <option value="">Pilih Bulan</option>
                             {BULAN_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -259,19 +273,14 @@ export default function TagihanPage() {
                         <button
                             onClick={handleGenerate}
                             disabled={generating}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
                         >
                             {generating ? (
-                                <>
-                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                                    Generating...
-                                </>
+                                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                             ) : (
-                                <>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                                    Generate Tagihan
-                                </>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             )}
+                            Generate Tagihan
                         </button>
                     </div>
                 </div>
@@ -292,7 +301,7 @@ export default function TagihanPage() {
                             {row.status === "belum" && (
                                 <button
                                     onClick={() => sendWhatsApp(row)}
-                                    className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                                    className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all"
                                     title="Kirim Pengingat WA"
                                 >
                                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
@@ -301,7 +310,7 @@ export default function TagihanPage() {
                             {row.status === "lunas" && (
                                 <button
                                     onClick={() => handleShowReceipt(row)}
-                                    className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                                    className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all"
                                     title="Unduh Kwitansi"
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -318,47 +327,49 @@ export default function TagihanPage() {
             <Modal
                 isOpen={showPaymentModal}
                 onClose={() => setShowPaymentModal(false)}
-                title="Konfirmasi Pembayaran"
+                title="Selesaikan Pembayaran"
+                size="sm"
+                footer={(
+                    <>
+                        <button onClick={() => setShowPaymentModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all font-medium">
+                            Batal
+                        </button>
+                        <button
+                            onClick={handleSettlePayment}
+                            disabled={settleLoading}
+                            className="px-5 py-2.5 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {settleLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                            Lunas Sekarang
+                        </button>
+                    </>
+                )}
             >
                 {selectedTagihan && (
                     <div className="space-y-6">
-                        <div className="bg-[#0f172a] rounded-2xl p-6 border border-slate-700">
-                            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-4">Detail Tagihan</p>
-                            <div className="space-y-3">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400 text-sm">Penyewa</span>
-                                    <span className="text-white font-medium">{selectedTagihan.penyewa?.nama}</span>
+                        <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-700/50">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-400">Penyewa</span>
+                                    <span className="text-white font-semibold">{selectedTagihan.penyewa?.nama}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400 text-sm">Kamar</span>
-                                    <span className="text-white font-medium">{selectedTagihan.penyewa?.kamar?.nomor}</span>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-400">Bulan Tagihan</span>
+                                    <span className="text-white font-semibold">{selectedTagihan.bulan}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400 text-sm">Bulan</span>
-                                    <span className="text-white font-medium">{selectedTagihan.bulan}</span>
-                                </div>
-                                <div className="pt-3 border-t border-slate-800 flex justify-between items-center">
-                                    <span className="text-slate-400 text-sm">Total</span>
-                                    <span className="text-indigo-400 text-xl font-bold">Rp {formatRupiah(selectedTagihan.jumlah)}</span>
+                                <div className="pt-4 border-t border-slate-700/50 flex justify-between items-center">
+                                    <span className="text-slate-400 text-sm">Total Bayar</span>
+                                    <span className="text-indigo-400 text-2xl font-black">Rp {formatRupiah(selectedTagihan.jumlah)}</span>
                                 </div>
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-1 gap-3">
-                            <button
-                                onClick={handleSettlePayment}
-                                className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-lg shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all"
-                            >
-                                Tandai Sebagai Lunas
-                            </button>
-                            <button
-                                onClick={() => sendWhatsApp(selectedTagihan)}
-                                className="w-full py-3 px-4 rounded-xl border border-slate-700 text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-800 transition-all font-medium"
-                            >
-                                <svg className="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
-                                Kirim Tagihan via WhatsApp
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => sendWhatsApp(selectedTagihan)}
+                            className="w-full py-4 rounded-2xl bg-[#25D366]/10 text-[#25D366] font-bold flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/20"
+                        >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                            Kirim Pengingat WhatsApp
+                        </button>
                     </div>
                 )}
             </Modal>
@@ -368,109 +379,103 @@ export default function TagihanPage() {
                 isOpen={showReceiptModal}
                 onClose={() => setShowReceiptModal(false)}
                 title="Kwitansi Pembayaran"
+                footer={(
+                    <>
+                        <button onClick={() => setShowReceiptModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white transition-all">
+                            Tutup
+                        </button>
+                        <button
+                            onClick={handlePrintReceipt}
+                            className="px-5 py-2.5 rounded-xl bg-indigo-500 text-white font-bold hover:bg-indigo-600 transition-all flex items-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            Cetak Kwitansi
+                        </button>
+                    </>
+                )}
             >
                 {selectedReceipt && (
                     <div className="space-y-6">
-                        <div id="receipt-content" className="receipt-box bg-white text-slate-900 rounded-lg p-8 shadow-sm font-sans border border-slate-200">
+                        <div id="receipt-content" className="receipt-box bg-white text-slate-900 rounded-2xl p-8 shadow-inner font-sans border border-slate-200">
                             <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
                                 <div>
                                     <h2 className="text-xl font-black uppercase tracking-tighter italic">SmartKos</h2>
-                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold leading-none">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos}</p>
                                 </div>
                                 <div className="text-right">
-                                    <h3 className="text-sm font-black uppercase">Kwitansi</h3>
-                                    <p className="text-[10px] text-slate-500">#{selectedReceipt.id.toString().slice(-8).toUpperCase()}</p>
+                                    <h3 className="text-sm font-black uppercase leading-none mb-1">Kwitansi</h3>
+                                    <p className="text-[10px] text-slate-400 font-mono">#{selectedReceipt.id.toString().slice(-8).toUpperCase()}</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-4 text-sm">
+                            <div className="space-y-5 text-sm">
                                 <div className="flex border-b border-slate-100 pb-2">
-                                    <span className="w-32 text-slate-500 text-xs font-bold uppercase italic">Sudah Terima Dari:</span>
+                                    <span className="w-32 text-slate-400 text-xs font-bold uppercase italic">Penyewa</span>
                                     <span className="font-bold border-b border-slate-900 flex-1 px-2">{selectedReceipt.penyewa?.nama}</span>
                                 </div>
                                 <div className="flex border-b border-slate-100 pb-2">
-                                    <span className="w-32 text-slate-500 text-xs font-bold uppercase italic">Banyaknya Uang:</span>
+                                    <span className="w-32 text-slate-400 text-xs font-bold uppercase italic">Jumlah</span>
                                     <span className="font-bold border-b border-slate-900 flex-1 px-2">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
                                 </div>
                                 <div className="flex border-b border-slate-100 pb-2">
-                                    <span className="w-32 text-slate-500 text-xs font-bold uppercase italic">Untuk Pembayaran:</span>
-                                    <span className="font-bold border-b border-slate-900 flex-1 px-2">Sewa Kamar {selectedReceipt.penyewa?.kamar?.nomor} - Bulan {selectedReceipt.bulan}</span>
+                                    <span className="w-32 text-slate-400 text-xs font-bold uppercase italic">Untuk</span>
+                                    <span className="font-bold border-b border-slate-900 flex-1 px-2 italic">Sewa Kamar {selectedReceipt.penyewa?.kamar?.nomor} ({selectedReceipt.bulan})</span>
                                 </div>
                             </div>
 
                             <div className="mt-12 flex justify-between items-end">
-                                <div className="bg-slate-900 text-white px-6 py-3 rounded italic font-black text-xl skew-x-[-12deg]">
+                                <div className="bg-slate-900 text-white px-6 py-3 rounded-xl italic font-black text-xl skew-x-[-12deg] shadow-lg shadow-slate-400/50">
                                     <span className="inline-block skew-x-[12deg]">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase mb-8">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                    <div className="w-32 border-b border-slate-900 mx-auto"></div>
-                                    <p className="text-[10px] text-slate-900 font-bold uppercase mt-1">Pemilik Kos</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-8">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                    <div className="w-24 border-b border-slate-900 mx-auto"></div>
+                                    <p className="text-[10px] text-slate-900 font-black uppercase mt-1">Pemilik Kos</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Hidden print only section */}
                         <div className="print-only">
-                            <div className="receipt-box bg-white text-slate-900 font-sans">
-                                <div className="flex justify-between items-start border-b-2 border-slate-900 pb-2 mb-4">
+                            <div className="p-12 bg-white min-h-[400px]">
+                                <div className="flex justify-between items-start border-b-4 border-slate-900 pb-4 mb-8">
                                     <div>
-                                        <h2 className="text-2xl font-black uppercase italic">SmartKos</h2>
-                                        <p className="text-xs font-bold uppercase tracking-widest">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos}</p>
+                                        <h2 className="text-4xl font-black uppercase italic tracking-tighter">SmartKos</h2>
+                                        <p className="text-sm font-bold uppercase tracking-widest text-slate-600">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos}</p>
                                     </div>
                                     <div className="text-right">
-                                        <h3 className="text-lg font-black uppercase">Kwitansi</h3>
-                                        <p className="text-xs text-slate-500">#{selectedReceipt.id.toString().slice(-8).toUpperCase()}</p>
+                                        <h3 className="text-2xl font-black uppercase">Bukti Pembayaran</h3>
+                                        <p className="text-sm font-mono text-slate-400">NO: {selectedReceipt.id.toString().slice(-8).toUpperCase()}</p>
                                     </div>
                                 </div>
 
-                                <div className="space-y-6 text-base py-4">
-                                    <div className="flex">
-                                        <span className="w-48 text-slate-500 font-bold uppercase italic">Sudah Terima Dari:</span>
-                                        <span className="font-bold border-b-2 border-slate-900 flex-1 px-2 text-xl">{selectedReceipt.penyewa?.nama}</span>
+                                <div className="space-y-8 text-xl py-10">
+                                    <div className="flex border-b-2 border-slate-100 pb-2">
+                                        <span className="w-56 text-slate-400 font-black uppercase italic text-sm">Sudah Terima Dari:</span>
+                                        <span className="font-black border-b-2 border-slate-900 flex-1 px-4 text-3xl">{selectedReceipt.penyewa?.nama}</span>
                                     </div>
-                                    <div className="flex">
-                                        <span className="w-48 text-slate-500 font-bold uppercase italic">Banyaknya Uang:</span>
-                                        <span className="font-bold border-b-2 border-slate-900 flex-1 px-2 text-xl italic underline decoration-double">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
+                                    <div className="flex border-b-2 border-slate-100 pb-2">
+                                        <span className="w-56 text-slate-400 font-black uppercase italic text-sm">Sejumlah Uang:</span>
+                                        <span className="font-black border-b-2 border-slate-900 flex-1 px-4 text-3xl italic underline underline-offset-8">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
                                     </div>
-                                    <div className="flex">
-                                        <span className="w-48 text-slate-500 font-bold uppercase italic">Untuk Pembayaran:</span>
-                                        <span className="font-bold border-b-2 border-slate-900 flex-1 px-2 text-xl">Sewa Kamar {selectedReceipt.penyewa?.kamar?.nomor} - Bulan {selectedReceipt.bulan}</span>
+                                    <div className="flex border-b-2 border-slate-100 pb-2">
+                                        <span className="w-56 text-slate-400 font-black uppercase italic text-sm">Guna Pembayaran:</span>
+                                        <span className="font-black border-b-2 border-slate-900 flex-1 px-4 text-2xl">SEWA KAMAR {selectedReceipt.penyewa?.kamar?.nomor} PERIODE {selectedReceipt.bulan.toUpperCase()}</span>
                                     </div>
                                 </div>
 
-                                <div className="mt-20 flex justify-between items-end">
-                                    <div className="bg-slate-900 text-white px-10 py-5 rounded italic font-black text-3xl skew-x-[-12deg]">
+                                <div className="mt-24 flex justify-between items-end">
+                                    <div className="bg-slate-900 text-white px-12 py-6 rounded-2xl italic font-black text-4xl skew-x-[-12deg]">
                                         <span className="inline-block skew-x-[12deg]">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="mb-16 font-bold uppercase text-xl">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                        <div className="w-64 border-b-2 border-slate-900 mr-0"></div>
-                                        <p className="font-bold uppercase mt-2 text-lg">Pemilik Kos</p>
+                                    <div className="text-right min-w-[300px]">
+                                        <p className="mb-20 font-black uppercase text-lg text-slate-600">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                        <div className="w-full border-b-4 border-slate-900"></div>
+                                        <p className="font-black uppercase mt-4 text-xl">LUNAS - PENGELOLA KOS</p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={handlePrintReceipt}
-                                className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-900 font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                </svg>
-                                Cetak Kwitansi
-                            </button>
-                            <button
-                                onClick={() => alert("Gunakan tombol 'Cetak' lalu pilih 'Simpan sebagai PDF' untuk membagikan.")}
-                                className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                </svg>
-                                Bagikan
-                            </button>
                         </div>
                     </div>
                 )}

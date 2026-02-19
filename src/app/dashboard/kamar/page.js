@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import { createClient } from "@/lib/supabase";
 
 export default function KamarPage() {
@@ -10,10 +11,21 @@ export default function KamarPage() {
     const [kosList, setKosList] = useState([]);
     const [selectedKos, setSelectedKos] = useState("");
     const [loading, setLoading] = useState(true);
+    const [submitLoading, setSubmitLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editItem, setEditItem] = useState(null);
-    // Removed 'status' from form state as it is now auto-calculated
     const [form, setForm] = useState({ kos_id: "", nomor: "", harga: "" });
+
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        type: "danger",
+        title: "",
+        message: "",
+        onConfirm: () => { },
+        loading: false
+    });
+
     const supabase = createClient();
 
     useEffect(() => {
@@ -39,17 +51,12 @@ export default function KamarPage() {
 
     const fetchKamar = async () => {
         try {
-            // Rely on RLS for filtering by owner. 
-            // Just join 'kos' to get the name.
             let query = supabase.from("kamar").select("*, kos(nama_kos)");
-
             if (selectedKos) {
                 query = query.eq("kos_id", selectedKos);
             }
-
             query = query.order("nomor");
             const { data, error } = await query;
-
             if (error) throw error;
             setKamarList(data || []);
         } catch (error) {
@@ -61,26 +68,35 @@ export default function KamarPage() {
         e.preventDefault();
         const payload = { ...form, harga: parseInt(form.harga) || 0 };
 
+        setSubmitLoading(true);
         if (editItem) {
-            // Status is NOT updated here manually
             await supabase.from("kamar").update(payload).eq("id", editItem.id);
         } else {
-            // New kamar defaults to 'Kosong' (handled by DB default)
             await supabase.from("kamar").insert(payload);
         }
+        setSubmitLoading(false);
         closeModal();
         fetchKamar();
     };
 
-    const handleDelete = async (item) => {
-        if (!confirm("Yakin ingin menghapus kamar ini?")) return;
-        await supabase.from("kamar").delete().eq("id", item.id);
-        fetchKamar();
+    const handleDelete = (item) => {
+        setConfirmModal({
+            isOpen: true,
+            type: "danger",
+            title: "Hapus Kamar",
+            message: `Apakah Anda yakin ingin menghapus kamar ${item.nomor} di ${item.kos?.nama_kos}? Data penyewa dan tagihan terkait mungkin akan terpengaruh.`,
+            confirmText: "Hapus Kamar",
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, loading: true }));
+                await supabase.from("kamar").delete().eq("id", item.id);
+                await fetchKamar();
+                setConfirmModal(prev => ({ ...prev, isOpen: false, loading: false }));
+            }
+        });
     };
 
     const openEdit = (item) => {
         setEditItem(item);
-        // Load existing data, ignore status for editing
         setForm({ kos_id: item.kos_id, nomor: item.nomor, harga: String(item.harga) });
         setShowModal(true);
     };
@@ -116,9 +132,9 @@ export default function KamarPage() {
             render: (val) => {
                 const isKosong = val === "Kosong" || val === "kosong";
                 return (
-                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${!isKosong
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : "bg-slate-500/20 text-slate-400"
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${!isKosong
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/10"
+                        : "bg-slate-500/20 text-slate-400 border-slate-500/10"
                         }`}>
                         {val}
                     </span>
@@ -134,7 +150,7 @@ export default function KamarPage() {
                     <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">Kelola Kamar</h1>
                     <p className="text-slate-400">Atur kamar untuk setiap properti kos Anda.</p>
                 </div>
-                <button onClick={openAdd} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all">
+                <button onClick={openAdd} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/20">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
@@ -147,7 +163,7 @@ export default function KamarPage() {
                 <select
                     value={selectedKos}
                     onChange={(e) => setSelectedKos(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="px-4 py-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
                     <option value="">Semua Kos</option>
                     {kosList.map((k) => (
@@ -169,31 +185,46 @@ export default function KamarPage() {
                     data={kamarList}
                     emptyMessage="Belum ada kamar."
                     actions={(row) => (
-                        <>
-                            <button onClick={() => openEdit(row)} className="p-2 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="flex gap-2">
+                            <button onClick={() => openEdit(row)} className="p-2 rounded-xl text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </button>
-                            <button onClick={() => handleDelete(row)} className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button onClick={() => handleDelete(row)} className="p-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </button>
-                        </>
+                        </div>
                     )}
                 />
             )}
 
-            <Modal isOpen={showModal} onClose={closeModal} title={editItem ? "Edit Kamar" : "Tambah Kamar"}>
+            <Modal
+                isOpen={showModal}
+                onClose={closeModal}
+                title={editItem ? "Edit Kamar" : "Tambah Kamar"}
+                footer={(
+                    <>
+                        <button type="button" onClick={closeModal} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white border border-[#334155] hover:bg-[#334155] transition-colors">
+                            Batal
+                        </button>
+                        <button onClick={handleSubmit} disabled={submitLoading} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all flex items-center gap-2">
+                            {submitLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                            {editItem ? "Simpan Perubahan" : "Tambah Kamar"}
+                        </button>
+                    </>
+                )}
+            >
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Kos</label>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Pilih Kos</label>
                         <select
                             value={form.kos_id}
                             onChange={(e) => setForm({ ...form, kos_id: e.target.value })}
                             required
-                            className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         >
                             <option value="">Pilih Kos</option>
                             {kosList.map((k) => (
@@ -203,21 +234,22 @@ export default function KamarPage() {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Nomor Kamar</label>
-                        <input type="text" value={form.nomor} onChange={(e) => setForm({ ...form, nomor: e.target.value })} required className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Contoh: A1, 101" />
+                        <input type="text" value={form.nomor} onChange={(e) => setForm({ ...form, nomor: e.target.value })} required className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" placeholder="Contoh: A1, 101" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Harga / Bulan</label>
-                        <input type="number" value={form.harga} onChange={(e) => setForm({ ...form, harga: e.target.value })} required className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="500000" />
-                    </div>
-
-                    {/* Status input removed - auto calculated based on tenants */}
-
-                    <div className="flex gap-3 justify-end">
-                        <button type="button" onClick={closeModal} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white border border-[#334155] hover:bg-[#334155] transition-colors">Batal</button>
-                        <button type="submit" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all">{editItem ? "Simpan" : "Tambah"}</button>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Harga Sewa / Bulan</label>
+                        <div className="relative">
+                            <span className="absolute left-4 top-3.5 text-slate-400 text-sm">Rp</span>
+                            <input type="number" value={form.harga} onChange={(e) => setForm({ ...form, harga: e.target.value })} required className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" placeholder="500.000" />
+                        </div>
                     </div>
                 </form>
             </Modal>
+
+            <ConfirmationModal
+                {...confirmModal}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+            />
         </div>
     );
 }
