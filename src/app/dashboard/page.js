@@ -6,7 +6,7 @@ import StatsCard from "@/components/StatsCard";
 import { createClient } from "@/lib/supabase";
 
 export default function DashboardPage() {
-    const [stats, setStats] = useState({ totalKos: 0, totalKamar: 0, kamarTerisi: 0, tagihanBelum: 0 });
+    const [stats, setStats] = useState({ totalKos: 0, totalKamar: 0, kamarTerisi: 0, tagihanBelumTotal: 0, tagihanBelumCount: 0 });
     const [loading, setLoading] = useState(true);
     const [activities, setActivities] = useState([]);
     const supabase = createClient();
@@ -29,22 +29,23 @@ export default function DashboardPage() {
             const [kosRes, kamarRes, tagihanRes, recentTenantsRes, recentBillsRes] = await Promise.all([
                 supabase.from("kos").select("id", { count: "exact" }),
                 supabase.from("kamar").select("id, status"),
-                supabase.from("tagihan").select("id, status").eq("status", "belum"),
+                supabase.from("tagihan").select("id, jumlah, status, penyewa_id").eq("status", "belum"),
                 supabase.from("penyewa").select("id, nama, created_at, kamar(nomor)").order("created_at", { ascending: false }).limit(3),
-                supabase.from("tagihan").select("id, nominal, status, created_at, penyewa(nama, kamar(nomor))").order("created_at", { ascending: false }).limit(3),
+                supabase.from("tagihan").select("id, jumlah, status, created_at, penyewa(nama, kamar(nomor))").order("created_at", { ascending: false }).limit(3),
             ]);
-
-            // Note: If RLS is not 100% covering these simple queries, we'd need filters.
-            // But based on schema.sql, RLS for these tables is implemented.
 
             const totalKamar = kamarRes.data?.length || 0;
             const kamarTerisi = kamarRes.data?.filter(k => k.status === "isi").length || 0;
+
+            const tagihanBelumCount = tagihanRes.data?.length || 0;
+            const tagihanBelumTotal = tagihanRes.data?.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0) || 0;
 
             setStats({
                 totalKos: kosRes.count || 0,
                 totalKamar,
                 kamarTerisi,
-                tagihanBelum: tagihanRes.data?.length || 0,
+                tagihanBelumTotal,
+                tagihanBelumCount,
             });
 
             // Combine and format activities
@@ -67,7 +68,7 @@ export default function DashboardPage() {
                     id: `t-${t.id}`,
                     type: "tagihan",
                     title: t.status === "lunas" ? "Tagihan Dibayar" : "Tagihan Baru",
-                    subtitle: `${t.penyewa?.nama || "Penyewa"} - Rp ${t.nominal?.toLocaleString('id-ID') || 0}`,
+                    subtitle: `${t.penyewa?.nama || "Penyewa"} - Rp ${t.jumlah?.toLocaleString('id-ID') || 0}`,
                     date: new Date(t.created_at),
                     icon: (
                         <div className={`w-10 h-10 rounded-full ${t.status === 'lunas' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'} flex items-center justify-center`}>
@@ -112,13 +113,15 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Main Stats (Income/Occupancy) */}
                 <div className="text-white mb-4">
                     <p className="text-white/60 text-xs font-medium mb-1">Total Tagihan Belum Lunas</p>
                     <h2 className="text-4xl font-black tracking-tight flex items-baseline gap-1">
                         <span className="text-lg font-bold text-white/50">Rp</span>
-                        {stats.tagihanBelum.toLocaleString('id-ID')}
+                        {stats.tagihanBelumTotal.toLocaleString('id-ID')}
                     </h2>
+                    <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">
+                        Dari {stats.tagihanBelumCount} Tagihan Belum Lunas
+                    </p>
                 </div>
 
                 {/* Top Action Buttons */}
@@ -336,8 +339,8 @@ export default function DashboardPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         }
-                        label="Tagihan Belum Lunas"
-                        value={loading ? "..." : stats.tagihanBelum}
+                        label={`Tagihan Belum Lunas (${stats.tagihanBelumCount} Orang)`}
+                        value={loading ? "..." : `Rp ${stats.tagihanBelumTotal.toLocaleString('id-ID')}`}
                     />
                 </div>
 
