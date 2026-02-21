@@ -35,7 +35,9 @@ export default function DashboardPage() {
             ]);
 
             const totalKamar = kamarRes.data?.length || 0;
-            const kamarTerisi = kamarRes.data?.filter(k => k.status === "isi").length || 0;
+            const kamarTerisi = kamarRes.data?.filter(k =>
+                k.status && k.status.toLowerCase() !== "kosong"
+            ).length || 0;
 
             const tagihanBelumCount = tagihanRes.data?.length || 0;
             const tagihanBelumTotal = tagihanRes.data?.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0) || 0;

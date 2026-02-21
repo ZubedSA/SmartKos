@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/lib/supabase";
 
@@ -37,7 +37,9 @@ const adminMenuItems = [
 
 export default function AdminLayout({ children }) {
     const [user, setUser] = useState(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const router = useRouter();
+    const pathname = usePathname();
     const supabase = createClient();
 
     useEffect(() => {
@@ -55,6 +57,11 @@ export default function AdminLayout({ children }) {
         getUser();
     }, []);
 
+    // Close sidebar on path change
+    useEffect(() => {
+        setIsSidebarOpen(false);
+    }, [pathname]);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         router.push("/login");
@@ -68,11 +75,22 @@ export default function AdminLayout({ children }) {
                 title="Admin Panel"
                 user={user}
                 onLogout={handleLogout}
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
             />
 
             {/* Mobile header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-center px-4 z-40">
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between px-4 z-40">
+                <button
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="p-2 text-slate-400 hover:text-white transition-colors"
+                >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                </button>
                 <h1 className="text-lg font-bold gradient-text">SmartKos Admin</h1>
+                <div className="w-10" /> {/* Spacer for centering */}
             </div>
 
             <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
