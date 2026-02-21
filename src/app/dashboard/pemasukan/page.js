@@ -1,26 +1,29 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase";
-import DataTable from "@/components/DataTable";
+import { useKos } from "@/context/KosContext";
 
 export default function PemasukanPage() {
+    const { selectedKosId } = useKos();
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState([]);
     const supabase = createClient();
 
     useEffect(() => {
         fetchPemasukan();
-    }, []);
+    }, [selectedKosId]);
 
     const fetchPemasukan = async () => {
+        setLoading(true);
         try {
-            // Placeholder: Fetching from tagihan which have status 'lunas' as income
-            const { data: income, error } = await supabase
+            let query = supabase
                 .from("tagihan")
-                .select("*, penyewa(nama, kamar(nomor))")
+                .select("*, penyewa!inner(nama, kamar!inner(nomor, kos_id))")
                 .eq("status", "lunas")
                 .order("created_at", { ascending: false });
+
+            if (selectedKosId !== "all") {
+                query = query.eq("penyewa.kamar.kos_id", selectedKosId);
+            }
+
+            const { data: income, error } = await query;
 
             if (error) throw error;
             setData(income || []);

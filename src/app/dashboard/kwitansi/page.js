@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
+import { useKos } from "@/context/KosContext";
 import { formatRupiah } from "@/lib/whatsapp";
 
 const SAMPLE_DATA = {
@@ -14,6 +15,7 @@ const SAMPLE_DATA = {
 };
 
 export default function KwitansiConfigPage() {
+    const { selectedKosId, kosList } = useKos();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -29,17 +31,25 @@ export default function KwitansiConfigPage() {
 
     useEffect(() => {
         fetchTemplate();
-    }, []);
+    }, [selectedKosId]);
 
     const fetchTemplate = async () => {
+        setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data, error } = await supabase
+        let query = supabase
             .from("receipt_templates")
             .select("*")
-            .eq("user_id", user.id)
-            .single();
+            .eq("user_id", user.id);
+
+        if (selectedKosId !== "all") {
+            query = query.eq("kos_id", selectedKosId);
+        } else {
+            query = query.is("kos_id", null);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (data) {
             setFormData({
@@ -49,6 +59,15 @@ export default function KwitansiConfigPage() {
                 pesan_tambahan: data.pesan_tambahan || ""
             });
             setTemplateId(data.id);
+        } else {
+            // Reset if no template found for this kos
+            setFormData({
+                nama_bisnis: "",
+                alamat_bisnis: "",
+                kontak_bisnis: "",
+                pesan_tambahan: "Terima kasih telah melakukan pembayaran tepat waktu."
+            });
+            setTemplateId(null);
         }
         setLoading(false);
     };
@@ -58,17 +77,23 @@ export default function KwitansiConfigPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        const payload = {
+            ...formData,
+            user_id: user.id,
+            kos_id: selectedKosId === "all" ? null : selectedKosId
+        };
+
         try {
             if (templateId) {
                 const { error } = await supabase
                     .from("receipt_templates")
-                    .update(formData)
+                    .update(payload)
                     .eq("id", templateId);
                 if (error) throw error;
             } else {
                 const { data, error } = await supabase
                     .from("receipt_templates")
-                    .insert([{ ...formData, user_id: user.id }])
+                    .insert([payload])
                     .select()
                     .single();
                 if (error) throw error;
@@ -87,10 +112,31 @@ export default function KwitansiConfigPage() {
 
     return (
         <div className="pb-24 lg:pb-0">
-            <div className="mb-8">
-                <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">Pengaturan Kwitansi</h1>
-                <p className="text-slate-400">Sesuaikan header dan pesan pada bukti pembayaran (kwitansi).</p>
+            <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">Pengaturan Kwitansi</h1>
+                    <p className="text-slate-400">Sesuaikan header dan pesan pada bukti pembayaran (kwitansi).</p>
+                </div>
+
+                <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 transition-all ${selectedKosId === 'all' ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${selectedKosId === 'all' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
+                    <span className="text-xs font-bold text-white uppercase tracking-widest">
+                        {selectedKosId === 'all' ? '🌍 Mode Global' : `🏘️ ${kosList.find(k => k.id === selectedKosId)?.nama_kos || 'Memuat...'}`}
+                    </span>
+                </div>
             </div>
+
+            {selectedKosId === 'all' && (
+                <div className="mb-8 p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-start gap-3">
+                    <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                        <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Informasi</p>
+                        <p className="text-sm text-slate-300">Saat ini Anda mengedit **Global Template**. Ganti pilihan kos di bagian atas untuk mengatur kwitansi khusus untuk properti tertentu.</p>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Form Editor */}

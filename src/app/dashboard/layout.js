@@ -108,6 +108,68 @@ const ownerMenuItems = [
     },
 ];
 
+import { KosProvider, useKos } from "@/context/KosContext";
+
+import KosSwitcher from "@/components/KosSwitcher";
+
+function DashboardContent({ children, ownerMenuItems, user, handleLogout, isMainDashboard }) {
+    const { setKosList, setIsLoadingKos } = useKos();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const supabase = createClient();
+    const pathname = usePathname();
+
+    useEffect(() => {
+        const fetchKosList = async () => {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
+                const { data } = await supabase
+                    .from("kos")
+                    .select("*")
+                    .eq("user_id", authUser.id)
+                    .order("nama_kos");
+                setKosList(data || []);
+            }
+            setIsLoadingKos(false);
+        };
+        fetchKosList();
+    }, []);
+
+    // Close sidebar on route change
+    useEffect(() => {
+        setIsSidebarOpen(false);
+    }, [pathname]);
+
+    return (
+        <div className="min-h-screen bg-[#0f172a] pb-16 lg:pb-0">
+            <Sidebar
+                items={ownerMenuItems}
+                title="Owner Panel"
+                user={user}
+                onLogout={handleLogout}
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
+            />
+
+            {/* Mobile header - Always visible on mobile */}
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-center px-4 z-40">
+                <div className="w-full max-w-[280px]">
+                    <KosSwitcher variant="mobile" />
+                </div>
+            </div>
+
+            {/* Mobile Bottom Navigation */}
+            <MobileNav />
+
+            {/* Main content */}
+            <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
+                <div className="p-4 lg:p-8">
+                    {children}
+                </div>
+            </main>
+        </div>
+    );
+}
+
 export default function DashboardLayout({ children }) {
     const [user, setUser] = useState(null);
     const router = useRouter();
@@ -145,30 +207,15 @@ export default function DashboardLayout({ children }) {
     };
 
     return (
-        <div className="min-h-screen bg-[#0f172a] pb-16 lg:pb-0">
-            <Sidebar
-                items={ownerMenuItems}
-                title="Owner Panel"
+        <KosProvider>
+            <DashboardContent
+                ownerMenuItems={ownerMenuItems}
                 user={user}
-                onLogout={handleLogout}
-            />
-
-            {/* Mobile header - Render standard header only if NOT on main dashboard */}
-            {!isMainDashboard && (
-                <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-center px-4 z-40">
-                    <h1 className="text-lg font-bold gradient-text">SmartKos</h1>
-                </div>
-            )}
-
-            {/* Mobile Bottom Navigation */}
-            <MobileNav />
-
-            {/* Main content */}
-            <main className={`lg:ml-64 ${!isMainDashboard ? 'pt-16' : ''} lg:pt-0 min-h-screen`}>
-                <div className="p-4 lg:p-8">
-                    {children}
-                </div>
-            </main>
-        </div>
+                handleLogout={handleLogout}
+                isMainDashboard={isMainDashboard}
+            >
+                {children}
+            </DashboardContent>
+        </KosProvider>
     );
 }

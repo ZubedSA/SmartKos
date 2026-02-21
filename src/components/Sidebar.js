@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import KosSwitcher from "./KosSwitcher";
+
 export default function Sidebar({ items, title, user, onLogout, isOpen, onClose }) {
     const pathname = usePathname();
 
@@ -44,6 +46,8 @@ export default function Sidebar({ items, title, user, onLogout, isOpen, onClose 
                         </svg>
                     </button>
                 </div>
+
+                <KosSwitcher variant="sidebar" />
 
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

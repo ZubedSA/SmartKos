@@ -1,34 +1,39 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase";
-import DataTable from "@/components/DataTable";
-import Modal from "@/components/Modal";
-import ConfirmationModal from "@/components/ConfirmationModal";
-import { formatRupiah } from "@/lib/whatsapp";
-
-const KATEGORI_OPTIONS = ["Listrik", "Air", "Kebersihan", "Keamanan", "Perbaikan", "Gaji", "Lainnya"];
+import { useKos } from "@/context/KosContext";
 
 export default function OperasionalPage() {
+    const { selectedKosId, kosList } = useKos();
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [submitLoading, setSubmitLoading] = useState(false);
-    const [formData, setFormData] = useState({ keterangan: "", jumlah: "", tanggal: new Date().toISOString().split("T")[0], kategori: "Lainnya" });
+    const [formData, setFormData] = useState({
+        keterangan: "",
+        jumlah: "",
+        tanggal: new Date().toISOString().split("T")[0],
+        kategori: "Lainnya",
+        kos_id: ""
+    });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
 
     const supabase = createClient();
 
     useEffect(() => {
         fetchOperasional();
-    }, []);
+    }, [selectedKosId]);
 
     const fetchOperasional = async () => {
+        setLoading(true);
         try {
-            const { data: expenses, error } = await supabase
+            let query = supabase
                 .from("operasional")
                 .select("*")
                 .order("tanggal", { ascending: false });
+
+            if (selectedKosId !== "all") {
+                query = query.eq("kos_id", selectedKosId);
+            }
+
+            const { data: expenses, error } = await query;
 
             if (error) throw error;
             setData(expenses || []);
@@ -40,7 +45,13 @@ export default function OperasionalPage() {
     };
 
     const handleAdd = () => {
-        setFormData({ keterangan: "", jumlah: "", tanggal: new Date().toISOString().split("T")[0], kategori: "Lainnya" });
+        setFormData({
+            keterangan: "",
+            jumlah: "",
+            tanggal: new Date().toISOString().split("T")[0],
+            kategori: "Lainnya",
+            kos_id: selectedKosId !== "all" ? selectedKosId : (kosList[0]?.id || "")
+        });
         setIsModalOpen(true);
     };
 
@@ -188,6 +199,18 @@ export default function OperasionalPage() {
                 )}
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Pilih Kos</label>
+                        <select
+                            required
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                            value={formData.kos_id}
+                            onChange={(e) => setFormData({ ...formData, kos_id: e.target.value })}
+                        >
+                            <option value="">Pilih Kos</option>
+                            {kosList.map(k => <option key={k.id} value={k.id}>{k.nama_kos}</option>)}
+                        </select>
+                    </div>
                     <div>
                         <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Keterangan</label>
                         <input

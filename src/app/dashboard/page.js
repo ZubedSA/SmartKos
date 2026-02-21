@@ -5,7 +5,10 @@ import Link from "next/link";
 import StatsCard from "@/components/StatsCard";
 import { createClient } from "@/lib/supabase";
 
+import { useKos } from "@/context/KosContext";
+
 export default function DashboardPage() {
+    const { selectedKosId } = useKos();
     const [stats, setStats] = useState({ totalKos: 0, totalKamar: 0, kamarTerisi: 0, tagihanBelumTotal: 0, tagihanBelumCount: 0 });
     const [loading, setLoading] = useState(true);
     const [activities, setActivities] = useState([]);
@@ -13,9 +16,10 @@ export default function DashboardPage() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [selectedKosId]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
@@ -23,15 +27,34 @@ export default function DashboardPage() {
                 return;
             }
 
-            // Simplify queries: RLS already filters by owner, 
-            // so we don't always need deeply nested !inner joins if they are slow.
-            // Just filter directly where possible.
+            // Build queries based on selectedKosId
+            let kosQuery = supabase.from("kos").select("id", { count: "exact" });
+            let kamarQuery = supabase.from("kamar").select("id, status, kos_id");
+            let tagihanQuery = supabase.from("tagihan").select("id, jumlah, status, penyewa_id").eq("status", "belum");
+            let recentTenantsQuery = supabase.from("penyewa").select("id, nama, created_at, kamar!inner(nomor, kos_id)").order("created_at", { ascending: false }).limit(3);
+            let recentBillsQuery = supabase.from("tagihan").select("id, jumlah, status, created_at, penyewa!inner(nama, kamar!inner(nomor, kos_id))").order("created_at", { ascending: false }).limit(3);
+
+            if (selectedKosId !== "all") {
+                kosQuery = kosQuery.eq("id", selectedKosId);
+                kamarQuery = kamarQuery.eq("kos_id", selectedKosId);
+
+                // For tagihan, we need to filter via penyewa -> kamar -> kos
+                // Simplified using inner join for Postgres
+                tagihanQuery = supabase.from("tagihan")
+                    .select("id, jumlah, status, penyewa!inner(id, kamar!inner(id, kos_id))")
+                    .eq("status", "belum")
+                    .eq("penyewa.kamar.kos_id", selectedKosId);
+
+                recentTenantsQuery = recentTenantsQuery.eq("kamar.kos_id", selectedKosId);
+                recentBillsQuery = recentBillsQuery.eq("penyewa.kamar.kos_id", selectedKosId);
+            }
+
             const [kosRes, kamarRes, tagihanRes, recentTenantsRes, recentBillsRes] = await Promise.all([
-                supabase.from("kos").select("id", { count: "exact" }),
-                supabase.from("kamar").select("id, status"),
-                supabase.from("tagihan").select("id, jumlah, status, penyewa_id").eq("status", "belum"),
-                supabase.from("penyewa").select("id, nama, created_at, kamar(nomor)").order("created_at", { ascending: false }).limit(3),
-                supabase.from("tagihan").select("id, jumlah, status, created_at, penyewa(nama, kamar(nomor))").order("created_at", { ascending: false }).limit(3),
+                kosQuery,
+                kamarQuery,
+                tagihanQuery,
+                recentTenantsQuery,
+                recentBillsQuery,
             ]);
 
             const totalKamar = kamarRes.data?.length || 0;

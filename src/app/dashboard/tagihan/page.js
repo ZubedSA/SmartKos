@@ -1,27 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase";
+import { formatRupiah, replacePlaceholders, generateWhatsAppLink } from "@/lib/whatsapp";
 import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
-import { createClient } from "@/lib/supabase";
-import { replacePlaceholders, generateWhatsAppLink, formatRupiah } from "@/lib/whatsapp";
+import { useKos } from "@/context/KosContext";
 
-const getBulanOptions = () => {
-    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    const options = [];
-    const now = new Date();
-
-    // Generate options for the last 3 months and next 3 months
-    for (let i = -3; i <= 3; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        options.push(`${months[d.getMonth()]} ${d.getFullYear()}`);
-    }
-    return options;
-};
-
-const BULAN_OPTIONS = getBulanOptions();
+const BULAN_OPTIONS = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
 
 export default function TagihanPage() {
+    const { selectedKosId } = useKos();
     const [tagihanList, setTagihanList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
@@ -33,12 +25,18 @@ export default function TagihanPage() {
     const [settleLoading, setSettleLoading] = useState(false);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState(null);
+    const [receiptConfig, setReceiptConfig] = useState(null);
     const [autoBillingEnabled, setAutoBillingEnabled] = useState(false);
     const [togglingAutoBilling, setTogglingAutoBilling] = useState(false);
 
     const supabase = createClient();
 
-    useEffect(() => { fetchTagihan(); fetchTemplate(); fetchSettings(); }, []);
+    useEffect(() => {
+        fetchTagihan();
+        fetchTemplate();
+        fetchSettings();
+    }, [selectedKosId]);
+
 
     const fetchSettings = async () => {
         try {
@@ -71,14 +69,21 @@ export default function TagihanPage() {
     };
 
     const fetchTagihan = async () => {
+        setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data, error } = await supabase
+            let query = supabase
                 .from("tagihan")
-                .select("*, penyewa(id, nama, no_hp, jatuh_tempo, kamar(nomor, harga, kos(nama_kos)))")
+                .select("*, penyewa!inner(id, nama, no_hp, jatuh_tempo, kamar!inner(nomor, harga, kos!inner(id, nama_kos)))")
                 .order("created_at", { ascending: false });
+
+            if (selectedKosId !== "all") {
+                query = query.eq("penyewa.kamar.kos_id", selectedKosId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setTagihanList(data || []);
@@ -108,9 +113,15 @@ export default function TagihanPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: penyewaList, error } = await supabase
+            let penyewaQuery = supabase
                 .from("penyewa")
-                .select("*, kamar(nomor, harga, kos(user_id))");
+                .select("*, kamar!inner(nomor, harga, kos!inner(user_id))");
+
+            if (selectedKosId !== "all") {
+                penyewaQuery = penyewaQuery.eq("kamar.kos_id", selectedKosId);
+            }
+
+            const { data: penyewaList, error } = await penyewaQuery;
 
             if (error) throw error;
 
@@ -150,6 +161,38 @@ export default function TagihanPage() {
         }
     };
 
+    const fetchReceiptConfig = async (kosId) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Try specific kos template first
+            const { data: specificData } = await supabase
+                .from("receipt_templates")
+                .select("*")
+                .eq("user_id", user.id)
+                .eq("kos_id", kosId)
+                .maybeSingle();
+
+            if (specificData) {
+                setReceiptConfig(specificData);
+                return;
+            }
+
+            // Fallback to global template (kos_id IS NULL)
+            const { data: globalData } = await supabase
+                .from("receipt_templates")
+                .select("*")
+                .eq("user_id", user.id)
+                .is("kos_id", null)
+                .maybeSingle();
+
+            setReceiptConfig(globalData);
+        } catch (error) {
+            console.error("Error fetching receipt config:", error);
+        }
+    };
+
     const handleSettlePayment = async () => {
         if (!selectedTagihan) return;
         setSettleLoading(true);
@@ -174,13 +217,13 @@ export default function TagihanPage() {
             setSelectedTagihan(row);
             setShowPaymentModal(true);
         } else {
-            setSelectedReceipt(row);
-            setShowReceiptModal(true);
+            handleShowReceipt(row);
         }
     };
 
     const handleShowReceipt = (row) => {
         setSelectedReceipt(row);
+        fetchReceiptConfig(row.penyewa?.kamar?.kos?.id);
         setShowReceiptModal(true);
     };
 
@@ -437,6 +480,7 @@ export default function TagihanPage() {
                 isOpen={showReceiptModal}
                 onClose={() => setShowReceiptModal(false)}
                 title="Kwitansi Pembayaran"
+                size="md"
                 footer={(
                     <>
                         <button onClick={() => setShowReceiptModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white transition-all">
@@ -444,7 +488,7 @@ export default function TagihanPage() {
                         </button>
                         <button
                             onClick={handlePrintReceipt}
-                            className="px-5 py-2.5 rounded-xl bg-indigo-500 text-white font-bold hover:bg-indigo-600 transition-all flex items-center gap-2"
+                            className="px-6 py-2.5 rounded-xl bg-indigo-500 text-white font-bold hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -456,82 +500,134 @@ export default function TagihanPage() {
             >
                 {selectedReceipt && (
                     <div className="space-y-6">
-                        <div id="receipt-content" className="receipt-box bg-white text-slate-900 rounded-2xl p-8 shadow-inner font-sans border border-slate-200">
-                            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
-                                <div>
-                                    <h2 className="text-xl font-black uppercase tracking-tighter italic">SmartKos</h2>
-                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold leading-none">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos}</p>
-                                </div>
-                                <div className="text-right">
-                                    <h3 className="text-sm font-black uppercase leading-none mb-1">Kwitansi</h3>
-                                    <p className="text-[10px] text-slate-400 font-mono">#{selectedReceipt.id.toString().slice(-8).toUpperCase()}</p>
-                                </div>
+                        {/* On-screen Preview */}
+                        <div id="receipt-content" className="receipt-box bg-white text-slate-900 rounded-3xl p-8 shadow-inner font-serif relative overflow-hidden border border-slate-200">
+                            {/* Watermark */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] -rotate-45 font-black text-6xl pointer-events-none select-none tracking-widest">
+                                SMARTKOS
                             </div>
 
-                            <div className="space-y-5 text-sm">
-                                <div className="flex border-b border-slate-100 pb-2">
-                                    <span className="w-32 text-slate-400 text-xs font-bold uppercase italic">Penyewa</span>
-                                    <span className="font-bold border-b border-slate-900 flex-1 px-2">{selectedReceipt.penyewa?.nama}</span>
+                            <div className="relative z-10">
+                                {/* Header */}
+                                <div className="text-center border-b-2 border-slate-900/10 pb-6 mb-8">
+                                    <h2 className="text-2xl font-black uppercase tracking-tighter mb-1 text-slate-900">
+                                        {receiptConfig?.nama_bisnis || selectedReceipt.penyewa?.kamar?.kos?.nama_kos || "BUKTI PEMBAYARAN"}
+                                    </h2>
+                                    {receiptConfig?.alamat_bisnis && (
+                                        <p className="text-[10px] leading-relaxed opacity-70 italic max-w-xs mx-auto mb-1">
+                                            {receiptConfig.alamat_bisnis}
+                                        </p>
+                                    )}
+                                    <p className="text-[10px] font-bold tracking-widest text-indigo-600 uppercase">
+                                        {receiptConfig?.kontak_bisnis || "KONTAK: -"}
+                                    </p>
                                 </div>
-                                <div className="flex border-b border-slate-100 pb-2">
-                                    <span className="w-32 text-slate-400 text-xs font-bold uppercase italic">Jumlah</span>
-                                    <span className="font-bold border-b border-slate-900 flex-1 px-2">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
-                                </div>
-                                <div className="flex border-b border-slate-100 pb-2">
-                                    <span className="w-32 text-slate-400 text-xs font-bold uppercase italic">Untuk</span>
-                                    <span className="font-bold border-b border-slate-900 flex-1 px-2 italic">Sewa Kamar {selectedReceipt.penyewa?.kamar?.nomor} ({selectedReceipt.bulan})</span>
-                                </div>
-                            </div>
 
-                            <div className="mt-12 flex justify-between items-end">
-                                <div className="bg-slate-900 text-white px-6 py-3 rounded-xl italic font-black text-xl skew-x-[-12deg] shadow-lg shadow-slate-400/50">
-                                    <span className="inline-block skew-x-[12deg]">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
+                                {/* Body */}
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-end border-b border-slate-900/5 pb-4">
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Nomor Kwitansi</p>
+                                            <h3 className="text-base font-black font-mono">#{selectedReceipt.id.toString().slice(-8).toUpperCase()}</h3>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggal</p>
+                                            <p className="text-xs font-bold italic">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4 py-2">
+                                        <div className="flex justify-between items-center text-sm border-b border-slate-50 border-dotted pb-2">
+                                            <span className="text-slate-500 italic">Sudah Terima Dari</span>
+                                            <span className="font-black text-slate-900">{selectedReceipt.penyewa?.nama}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm border-b border-slate-50 border-dotted pb-2">
+                                            <span className="text-slate-500 italic">Properti / Kamar</span>
+                                            <span className="font-black text-slate-900">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos} - Kamar {selectedReceipt.penyewa?.kamar?.nomor}</span>
+                                        </div>
+                                        <div className="flex justify-between items-start text-sm border-b border-slate-50 border-dotted pb-2">
+                                            <span className="text-slate-500 italic">Untuk Pembayaran</span>
+                                            <span className="font-black text-slate-900 text-right max-w-[180px]">Sewa Kamar Periode {selectedReceipt.bulan}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Total Container */}
+                                    <div className="bg-slate-50 rounded-2xl p-5 flex justify-between items-center border border-slate-100 mt-8">
+                                        <span className="font-black uppercase tracking-widest text-xs text-slate-400">Total Nominal</span>
+                                        <span className="text-2xl font-black text-slate-900">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-8">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                    <div className="w-24 border-b border-slate-900 mx-auto"></div>
-                                    <p className="text-[10px] text-slate-900 font-black uppercase mt-1">Pemilik Kos</p>
+
+                                {/* Footer / Signature */}
+                                <div className="mt-12 text-center relative">
+                                    <p className="text-[10px] italic text-slate-500 px-8 leading-relaxed mb-8">
+                                        "{receiptConfig?.pesan_tambahan || "Terima kasih telah mempercayakan hunian Anda kepada kami."}"
+                                    </p>
+
+                                    <div className="flex justify-end pr-8">
+                                        <div className="text-center">
+                                            <div className="w-32 border-b-2 border-slate-900 mb-2 mt-4"></div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest">Pengelola Kos</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Stamp/Paid Indicator */}
+                                    <div className="absolute left-4 bottom-2 inline-block px-4 py-1.5 border-4 border-emerald-500/30 text-emerald-500 text-[10px] font-black rounded-lg rotate-[-15deg] uppercase tracking-widest">
+                                        Lunas / Paid
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Print Only Version (Professional High-Res) */}
                         <div className="print-only">
-                            <div className="p-12 bg-white min-h-[400px]">
-                                <div className="flex justify-between items-start border-b-4 border-slate-900 pb-4 mb-8">
+                            <div className="p-16 bg-white min-h-[500px] text-slate-950 font-serif">
+                                <div className="flex justify-between items-start border-b-[3px] border-slate-950 pb-6 mb-10">
                                     <div>
-                                        <h2 className="text-4xl font-black uppercase italic tracking-tighter">SmartKos</h2>
-                                        <p className="text-sm font-bold uppercase tracking-widest text-slate-600">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos}</p>
+                                        <h2 className="text-4xl font-black uppercase italic tracking-tighter mb-2">
+                                            {receiptConfig?.nama_bisnis || selectedReceipt.penyewa?.kamar?.kos?.nama_kos}
+                                        </h2>
+                                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 mb-1">{receiptConfig?.alamat_bisnis}</p>
+                                        <p className="text-xs font-black text-indigo-700">{receiptConfig?.kontak_bisnis}</p>
                                     </div>
                                     <div className="text-right">
-                                        <h3 className="text-2xl font-black uppercase">Bukti Pembayaran</h3>
-                                        <p className="text-sm font-mono text-slate-400">NO: {selectedReceipt.id.toString().slice(-8).toUpperCase()}</p>
+                                        <h3 className="text-2xl font-black uppercase tracking-widest mb-2">Bukti Bayar</h3>
+                                        <p className="text-sm font-mono text-slate-400">NO: {selectedReceipt.id.toString().slice(-12).toUpperCase()}</p>
                                     </div>
                                 </div>
 
-                                <div className="space-y-8 text-xl py-10">
-                                    <div className="flex border-b-2 border-slate-100 pb-2">
-                                        <span className="w-56 text-slate-400 font-black uppercase italic text-sm">Sudah Terima Dari:</span>
-                                        <span className="font-black border-b-2 border-slate-900 flex-1 px-4 text-3xl">{selectedReceipt.penyewa?.nama}</span>
+                                <div className="space-y-10 text-2xl py-8">
+                                    <div className="flex items-end gap-6">
+                                        <span className="text-sm font-black uppercase italic text-slate-400 min-w-[150px]">Diterima Dari</span>
+                                        <span className="border-b-2 border-slate-950 flex-1 px-4 text-4xl font-bold uppercase pb-2">{selectedReceipt.penyewa?.nama}</span>
                                     </div>
-                                    <div className="flex border-b-2 border-slate-100 pb-2">
-                                        <span className="w-56 text-slate-400 font-black uppercase italic text-sm">Sejumlah Uang:</span>
-                                        <span className="font-black border-b-2 border-slate-900 flex-1 px-4 text-3xl italic underline underline-offset-8">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
+                                    <div className="flex items-end gap-6">
+                                        <span className="text-sm font-black uppercase italic text-slate-400 min-w-[150px]">Sejumlah Uang</span>
+                                        <span className="border-b-2 border-slate-950 flex-1 px-4 text-4xl font-black italic pb-2">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
                                     </div>
-                                    <div className="flex border-b-2 border-slate-100 pb-2">
-                                        <span className="w-56 text-slate-400 font-black uppercase italic text-sm">Guna Pembayaran:</span>
-                                        <span className="font-black border-b-2 border-slate-900 flex-1 px-4 text-2xl">SEWA KAMAR {selectedReceipt.penyewa?.kamar?.nomor} PERIODE {selectedReceipt.bulan.toUpperCase()}</span>
+                                    <div className="flex items-end gap-6">
+                                        <span className="text-sm font-black uppercase italic text-slate-400 min-w-[150px]">Keterangan</span>
+                                        <span className="border-b-2 border-slate-950 flex-1 px-4 text-2xl font-bold pb-2">PEMBAYARAN SEWA KAMAR {selectedReceipt.penyewa?.kamar?.nomor} - {selectedReceipt.bulan.toUpperCase()}</span>
                                     </div>
                                 </div>
 
-                                <div className="mt-24 flex justify-between items-end">
-                                    <div className="bg-slate-900 text-white px-12 py-6 rounded-2xl italic font-black text-4xl skew-x-[-12deg]">
-                                        <span className="inline-block skew-x-[12deg]">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
+                                <div className="mt-20 flex justify-between items-center">
+                                    <div className="bg-slate-950 text-white px-10 py-6 rounded-2xl italic font-black text-5xl skew-x-[-10deg] shadow-2xl">
+                                        <span className="inline-block skew-x-[10deg]">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
                                     </div>
-                                    <div className="text-right min-w-[300px]">
-                                        <p className="mb-20 font-black uppercase text-lg text-slate-600">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                        <div className="w-full border-b-4 border-slate-900"></div>
-                                        <p className="font-black uppercase mt-4 text-xl">LUNAS - PENGELOLA KOS</p>
+                                    <div className="text-center min-w-[250px]">
+                                        <p className="mb-24 font-bold text-lg text-slate-600 italic">
+                                            {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                        </p>
+                                        <div className="w-full border-b-[3px] border-slate-950 mb-3"></div>
+                                        <p className="font-black uppercase tracking-widest text-sm">Authorized Signature</p>
                                     </div>
+                                </div>
+
+                                <div className="mt-16 text-center border-t border-slate-100 pt-8">
+                                    <p className="text-sm italic opacity-40">
+                                        "{receiptConfig?.pesan_tambahan || "Terima kasih atas pembayaran Anda. Simpan bukti ini sebagai referensi resmi."}"
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -1,12 +1,7 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import DataTable from "@/components/DataTable";
-import Modal from "@/components/Modal";
-import ConfirmationModal from "@/components/ConfirmationModal";
-import { createClient } from "@/lib/supabase";
+import { useKos } from "@/context/KosContext";
 
 export default function PenyewaPage() {
+    const { selectedKosId } = useKos();
     const [penyewaList, setPenyewaList] = useState([]);
     const [kamarList, setKamarList] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -27,16 +22,25 @@ export default function PenyewaPage() {
 
     const supabase = createClient();
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [selectedKosId]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
+            let penyewaQuery = supabase.from("penyewa").select("*, kamar!inner(nomor, harga, kos!inner(id, nama_kos))").order("created_at", { ascending: false });
+            let kamarQuery = supabase.from("kamar").select("*, kos!inner(id, nama_kos)").order("nomor");
+
+            if (selectedKosId !== "all") {
+                penyewaQuery = penyewaQuery.eq("kamar.kos_id", selectedKosId);
+                kamarQuery = kamarQuery.eq("kos_id", selectedKosId);
+            }
+
             const [penyewaRes, kamarRes] = await Promise.all([
-                supabase.from("penyewa").select("*, kamar(nomor, harga, kos(nama_kos))").order("created_at", { ascending: false }),
-                supabase.from("kamar").select("*, kos(nama_kos)").order("nomor"),
+                penyewaQuery,
+                kamarQuery,
             ]);
 
             if (penyewaRes.error) throw penyewaRes.error;

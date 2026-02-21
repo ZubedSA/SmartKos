@@ -1,15 +1,8 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import DataTable from "@/components/DataTable";
-import Modal from "@/components/Modal";
-import ConfirmationModal from "@/components/ConfirmationModal";
-import { createClient } from "@/lib/supabase";
+import { useKos } from "@/context/KosContext";
 
 export default function KamarPage() {
+    const { selectedKosId, kosList } = useKos();
     const [kamarList, setKamarList] = useState([]);
-    const [kosList, setKosList] = useState([]);
-    const [selectedKos, setSelectedKos] = useState("");
     const [loading, setLoading] = useState(true);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -29,31 +22,15 @@ export default function KamarPage() {
     const supabase = createClient();
 
     useEffect(() => {
-        fetchData();
-    }, []);
-
-    useEffect(() => {
-        if (kosList.length > 0) fetchKamar();
-    }, [selectedKos, kosList]);
-
-    const fetchData = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data: kos } = await supabase.from("kos").select("*").order("nama_kos");
-            setKosList(kos || []);
-        } catch (error) {
-            console.error("Error fetching kos data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+        fetchKamar();
+    }, [selectedKosId]);
 
     const fetchKamar = async () => {
+        setLoading(true);
         try {
             let query = supabase.from("kamar").select("*, kos(nama_kos)");
-            if (selectedKos) {
-                query = query.eq("kos_id", selectedKos);
+            if (selectedKosId !== "all") {
+                query = query.eq("kos_id", selectedKosId);
             }
             query = query.order("nomor");
             const { data, error } = await query;
@@ -61,6 +38,8 @@ export default function KamarPage() {
             setKamarList(data || []);
         } catch (error) {
             console.error("Error fetching kamar data:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -102,7 +81,11 @@ export default function KamarPage() {
     };
 
     const openAdd = () => {
-        setForm({ kos_id: selectedKos || (kosList[0]?.id || ""), nomor: "", harga: "" });
+        setForm({
+            kos_id: selectedKosId !== "all" ? selectedKosId : (kosList[0]?.id || ""),
+            nomor: "",
+            harga: ""
+        });
         setShowModal(true);
     };
 
@@ -158,19 +141,7 @@ export default function KamarPage() {
                 </button>
             </div>
 
-            {/* Filter */}
-            <div className="mb-6">
-                <select
-                    value={selectedKos}
-                    onChange={(e) => setSelectedKos(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                >
-                    <option value="">Semua Kos</option>
-                    {kosList.map((k) => (
-                        <option key={k.id} value={k.id}>{k.nama_kos}</option>
-                    ))}
-                </select>
-            </div>
+            {/* Header section remains but local filter is gone */}
 
             {loading ? (
                 <div className="flex justify-center py-20">
