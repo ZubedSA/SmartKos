@@ -35,6 +35,8 @@ const adminMenuItems = [
     },
 ];
 
+import { KosProvider } from "@/context/KosContext";
+
 export default function AdminLayout({ children }) {
     const [user, setUser] = useState(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -69,35 +71,37 @@ export default function AdminLayout({ children }) {
     };
 
     return (
-        <div className="min-h-screen bg-[#0f172a]">
-            <Sidebar
-                items={adminMenuItems}
-                title="Admin Panel"
-                user={user}
-                onLogout={handleLogout}
-                isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
-            />
+        <KosProvider>
+            <div className="min-h-screen bg-[#0f172a]">
+                <Sidebar
+                    items={adminMenuItems}
+                    title="Admin Panel"
+                    user={user}
+                    onLogout={handleLogout}
+                    isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
+                />
 
-            {/* Mobile header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between px-4 z-40">
-                <button
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="p-2 text-slate-400 hover:text-white transition-colors"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-                    </svg>
-                </button>
-                <h1 className="text-lg font-bold gradient-text">SmartKos Admin</h1>
-                <div className="w-10" /> {/* Spacer for centering */}
-            </div>
-
-            <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
-                <div className="p-6 lg:p-8">
-                    {children}
+                {/* Mobile header */}
+                <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between px-4 z-40">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="p-2 text-slate-400 hover:text-white transition-colors"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                    </button>
+                    <h1 className="text-lg font-bold gradient-text">SmartKos Admin</h1>
+                    <div className="w-10" /> {/* Spacer for centering */}
                 </div>
-            </main>
-        </div>
+
+                <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
+                    <div className="p-6 lg:p-8">
+                        {children}
+                    </div>
+                </main>
+            </div>
+        </KosProvider>
     );
 }

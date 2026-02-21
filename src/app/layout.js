@@ -4,8 +4,16 @@ export const metadata = {
     title: "SmartKos - Manajemen Kos Modern",
     description: "Aplikasi SaaS untuk manajemen kos-kosan. Kelola kamar, penyewa, tagihan, dan kirim notifikasi WhatsApp dengan mudah.",
     manifest: "/manifest.json",
-    viewport: "minimum-scale=1, initial-scale=1, width=device-width, shrink-to-fit=no, user-scalable=no, viewport-fit=cover",
+};
+
+export const viewport = {
     themeColor: "#0f172a",
+    width: "device-width",
+    initialScale: 1,
+    minimumScale: 1,
+    shrinkToFit: "no",
+    userScalable: "no",
+    viewportFit: "cover",
 };
 
 export default function RootLayout({ children }) {

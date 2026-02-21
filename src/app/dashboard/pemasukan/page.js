@@ -1,4 +1,9 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { useKos } from "@/context/KosContext";
+import { createClient } from "@/lib/supabase";
+import DataTable from "@/components/DataTable";
 
 export default function PemasukanPage() {
     const { selectedKosId } = useKos();

@@ -1,4 +1,11 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { useKos } from "@/context/KosContext";
+import { createClient } from "@/lib/supabase";
+import DataTable from "@/components/DataTable";
+import Modal from "@/components/Modal";
+import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function KamarPage() {
     const { selectedKosId, kosList } = useKos();

@@ -1,4 +1,14 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { useKos } from "@/context/KosContext";
+import { createClient } from "@/lib/supabase";
+import DataTable from "@/components/DataTable";
+import Modal from "@/components/Modal";
+import ConfirmationModal from "@/components/ConfirmationModal";
+
+const KATEGORI_OPTIONS = ["Listrik", "Air", "Kebersihan", "Keamanan", "Perbaikan", "Lainnya"];
+const formatRupiah = (val) => Number(val).toLocaleString("id-ID");
 
 export default function OperasionalPage() {
     const { selectedKosId, kosList } = useKos();
