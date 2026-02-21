@@ -6,10 +6,20 @@ import Modal from "@/components/Modal";
 import { createClient } from "@/lib/supabase";
 import { replacePlaceholders, generateWhatsAppLink, formatRupiah } from "@/lib/whatsapp";
 
-const BULAN_OPTIONS = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-];
+const getBulanOptions = () => {
+    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const options = [];
+    const now = new Date();
+
+    // Generate options for the last 3 months and next 3 months
+    for (let i = -3; i <= 3; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        options.push(`${months[d.getMonth()]} ${d.getFullYear()}`);
+    }
+    return options;
+};
+
+const BULAN_OPTIONS = getBulanOptions();
 
 export default function TagihanPage() {
     const [tagihanList, setTagihanList] = useState([]);
@@ -23,10 +33,42 @@ export default function TagihanPage() {
     const [settleLoading, setSettleLoading] = useState(false);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState(null);
+    const [autoBillingEnabled, setAutoBillingEnabled] = useState(false);
+    const [togglingAutoBilling, setTogglingAutoBilling] = useState(false);
 
     const supabase = createClient();
 
-    useEffect(() => { fetchTagihan(); fetchTemplate(); }, []);
+    useEffect(() => { fetchTagihan(); fetchTemplate(); fetchSettings(); }, []);
+
+    const fetchSettings = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data } = await supabase.from("users").select("auto_generate_billing_enabled").eq("id", user.id).single();
+            if (data) setAutoBillingEnabled(data.auto_generate_billing_enabled);
+        } catch (error) {
+            console.error("Error fetching settings:", error);
+        }
+    };
+
+    const handleToggleAutoBilling = async () => {
+        setTogglingAutoBilling(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const newValue = !autoBillingEnabled;
+            const { error } = await supabase
+                .from("users")
+                .update({ auto_generate_billing_enabled: newValue })
+                .eq("id", user.id);
+            if (error) throw error;
+            setAutoBillingEnabled(newValue);
+        } catch (error) {
+            alert("Gagal memperbarui pengaturan: " + error.message);
+        } finally {
+            setTogglingAutoBilling(false);
+        }
+    };
 
     const fetchTagihan = async () => {
         try {
@@ -260,7 +302,23 @@ export default function TagihanPage() {
             {/* Generate Section */}
             {activeTab === "belum" && (
                 <div className="bg-[#1e293b]/50 border border-[#334155]/50 backdrop-blur-sm rounded-2xl p-6 mb-6">
-                    <h3 className="text-sm font-semibold text-white mb-4">Generate Tagihan Bulanan</h3>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6 pb-6 border-b border-[#334155]/50">
+                        <div>
+                            <h3 className="text-sm font-semibold text-white mb-1">Otomatisasi Tagihan</h3>
+                            <p className="text-xs text-slate-400">Sistem akan membuat tagihan baru otomatis setiap tanggal 1.</p>
+                        </div>
+                        <button
+                            onClick={handleToggleAutoBilling}
+                            disabled={togglingAutoBilling}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${autoBillingEnabled ? "bg-indigo-500" : "bg-slate-700"}`}
+                        >
+                            <span
+                                className={`${autoBillingEnabled ? "translate-x-6" : "translate-x-1"} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                            />
+                        </button>
+                    </div>
+
+                    <h3 className="text-sm font-semibold text-white mb-4">Generate Tagihan Manual</h3>
                     <div className="flex flex-col sm:flex-row gap-3">
                         <select
                             value={selectedBulan}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import { replacePlaceholders } from "@/lib/whatsapp";
+import Link from "next/link";
 
 const PLACEHOLDERS = [
     { key: "{nama}", label: "Nama Penyewa" },
@@ -131,7 +132,15 @@ export default function WhatsAppPage() {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Fonnte API Token</label>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider">Fonnte API Token</label>
+                                    <Link href="/dashboard/whatsapp/tutorial" className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Cara Integrasi
+                                    </Link>
+                                </div>
                                 <input
                                     type="password"
                                     value={apiKey}
