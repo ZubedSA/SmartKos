@@ -84,7 +84,7 @@ export default function KelolaHubPage() {
         {
             title: "Sistem & Keamanan",
             desc: "Log aktivitas dan pengaturan sistem",
-            href: "#",
+            href: "/dashboard/keamanan",
             color: "rose",
             icon: (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,7 +95,7 @@ export default function KelolaHubPage() {
         {
             title: "Bantuan",
             desc: "Panduan penggunaan dan dukungan klien",
-            href: "#",
+            href: "/dashboard/bantuan",
             color: "cyan",
             icon: (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,7 +125,7 @@ export default function KelolaHubPage() {
                         <p className="text-white/60 text-sm">Paket Aktif hingga {user?.subscription_expired_at ? new Date(user.subscription_expired_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</p>
                     </div>
                 </div>
-                <Link href="#" className="px-6 py-3 rounded-2xl bg-white text-[#2e1065] font-black text-sm uppercase tracking-widest hover:scale-105 transition-transform shadow-xl">
+                <Link href="/billing" className="px-6 py-3 rounded-2xl bg-white text-[#2e1065] font-black text-sm uppercase tracking-widest hover:scale-105 transition-transform shadow-xl">
                     Perpanjang
                 </Link>
             </div>

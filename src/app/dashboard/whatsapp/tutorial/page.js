@@ -83,16 +83,27 @@ export default function WAGuidePage() {
                 <p className="text-slate-400 text-sm mb-4">
                     Kunjungi situs dokumentasi resmi Fonnte untuk detail penggunaan API yang lebih mendalam atau hubungi pengembang jika Anda mengalami kendala teknis.
                 </p>
-                <a
-                    href="https://fonnte.com"
-                    target="_blank"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20"
-                >
-                    Buka Fonnte.com
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                </a>
+                <div className="flex gap-3 flex-wrap">
+                    <a
+                        href="https://fonnte.com"
+                        target="_blank"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                        Buka Fonnte.com
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </a>
+                    <Link
+                        href="/dashboard/bantuan"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#334155] text-slate-300 text-xs font-bold hover:text-white hover:bg-[#475569] transition-all"
+                    >
+                        Hubungi Dukungan SmartKos
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                    </Link>
+                </div>
             </div>
         </div>
     );

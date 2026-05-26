@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import KosSwitcher from "./KosSwitcher";
+import Logo from "./Logo";
 
 export default function Sidebar({ items, title, user, onLogout, isOpen, onClose }) {
     const pathname = usePathname();
@@ -25,11 +26,7 @@ export default function Sidebar({ items, title, user, onLogout, isOpen, onClose 
                 {/* Logo */}
                 <div className="p-6 border-b border-[#334155] flex items-center justify-between">
                     <Link href={items[0]?.href || "/"} className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                            </svg>
-                        </div>
+                        <Logo className="w-10 h-10 drop-shadow-md" />
                         <div>
                             <h1 className="text-lg font-bold text-white">SmartKos</h1>
                             <p className="text-xs text-slate-400">{title}</p>
