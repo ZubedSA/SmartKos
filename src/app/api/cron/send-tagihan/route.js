@@ -18,7 +18,8 @@ export async function GET(request) {
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const today = new Date();
+        // Calculate current day in WIB (Asia/Jakarta) instead of UTC
+        const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
         const currentDay = today.getDate().toString();
         
         // 1. Fetch all unpaid tagihan
@@ -40,10 +41,17 @@ export async function GET(request) {
         const userIds = [...new Set(dueTagihan.map(t => t.penyewa.kamar.kos.user_id))];
         const { data: templates, error: templateError } = await supabase
             .from("wa_templates")
-            .select("user_id, isi_template, fonnte_token")
+            .select("user_id, isi_template")
             .in("user_id", userIds);
 
         if (templateError) throw templateError;
+
+        const { data: usersData, error: usersError } = await supabase
+            .from("users")
+            .select("id, wa_api_key")
+            .in("id", userIds);
+            
+        if (usersError) throw usersError;
 
         const templateMap = templates.reduce((acc, curr) => {
             acc[curr.user_id] = curr;
@@ -57,8 +65,9 @@ export async function GET(request) {
         for (const tagihan of dueTagihan) {
             const userId = tagihan.penyewa.kamar.kos.user_id;
             const templateData = templateMap[userId];
+            const userConfig = usersData.find(u => u.id === userId);
 
-            if (!templateData || !templateData.fonnte_token) {
+            if (!templateData || !userConfig || !userConfig.wa_api_key) {
                 failedCount++;
                 continue; // Skip if no token configured
             }
@@ -81,7 +90,7 @@ export async function GET(request) {
             try {
                 const response = await fetch("https://api.fonnte.com/send", {
                     method: "POST",
-                    headers: { "Authorization": templateData.fonnte_token },
+                    headers: { "Authorization": userConfig.wa_api_key },
                     body: formData
                 });
                 

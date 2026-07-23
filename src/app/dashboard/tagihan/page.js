@@ -76,7 +76,7 @@ export default function TagihanPage() {
 
             let query = supabase
                 .from("tagihan")
-                .select("*, penyewa!inner(id, nama, no_hp, jatuh_tempo, kamar!inner(nomor, harga, kos!inner(id, nama_kos)))")
+                .select("*, penyewa!inner(id, nama, no_hp, jatuh_tempo, kamar!inner(nomor, harga, kos!inner(id, nama_kos, user_id)))")
                 .order("created_at", { ascending: false });
 
             if (selectedKosId !== "all") {
@@ -249,13 +249,15 @@ export default function TagihanPage() {
     };
 
     const sendWhatsAppFonnte = async (tagihan) => {
-        const { data: templateData } = await supabase
-            .from("wa_templates")
-            .select("fonnte_token")
-            .eq("user_id", tagihan.penyewa.kamar.kos.user_id)
+        const kosUserId = tagihan.penyewa.kamar.kos.user_id;
+
+        const { data: userData } = await supabase
+            .from("users")
+            .select("wa_api_key")
+            .eq("id", kosUserId)
             .single();
 
-        if (!templateData || !templateData.fonnte_token) {
+        if (!userData || !userData.wa_api_key) {
             alert("Token Fonnte belum diatur. Silakan atur di Pengaturan WhatsApp.");
             return;
         }
@@ -277,7 +279,7 @@ export default function TagihanPage() {
 
             const res = await fetch("/api/whatsapp/send", {
                 method: "POST",
-                headers: { "Authorization": templateData.fonnte_token },
+                headers: { "Authorization": userData.wa_api_key },
                 body: formData
             });
 
