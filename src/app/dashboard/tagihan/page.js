@@ -248,6 +248,53 @@ export default function TagihanPage() {
         fetchTagihan();
     };
 
+    const sendWhatsAppFonnte = async (tagihan) => {
+        const { data: templateData } = await supabase
+            .from("wa_templates")
+            .select("fonnte_token")
+            .eq("user_id", tagihan.penyewa.kamar.kos.user_id)
+            .single();
+
+        if (!templateData || !templateData.fonnte_token) {
+            alert("Token Fonnte belum diatur. Silakan atur di Pengaturan WhatsApp.");
+            return;
+        }
+
+        const data = {
+            nama: tagihan.penyewa.nama,
+            bulan: tagihan.bulan,
+            jumlah: tagihan.jumlah,
+            kamar: tagihan.penyewa.kamar.nomor,
+            jatuh_tempo: tagihan.penyewa.jatuh_tempo,
+        };
+        const message = replacePlaceholders(waTemplate, data);
+
+        try {
+            const formData = new FormData();
+            formData.append("target", tagihan.penyewa.no_hp);
+            formData.append("message", message);
+            formData.append("delay", "2");
+
+            const res = await fetch("/api/whatsapp/send", {
+                method: "POST",
+                headers: { "Authorization": templateData.fonnte_token },
+                body: formData
+            });
+
+            const result = await res.json();
+            if (result.status) {
+                await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
+                alert("Pesan WhatsApp berhasil dikirim otomatis via Fonnte!");
+                fetchTagihan();
+            } else {
+                alert("Gagal mengirim pesan: " + (result.reason || "Unknown error"));
+            }
+        } catch (error) {
+            console.error("Error sending Fonnte WA:", error);
+            alert("Terjadi kesalahan saat mengirim pesan.");
+        }
+    };
+
     const filteredData = tagihanList.filter(t => t.status === activeTab);
 
     const columns = [
@@ -464,13 +511,22 @@ export default function TagihanPage() {
                                 </div>
                             </div>
                         </div>
-                        <button
-                            onClick={() => sendWhatsApp(selectedTagihan)}
-                            className="w-full py-4 rounded-2xl bg-[#25D366]/10 text-[#25D366] font-bold flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/20"
-                        >
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
-                            Kirim Pengingat WhatsApp
-                        </button>
+                        <div className="flex gap-2 w-full mt-4">
+                            <button
+                                onClick={() => sendWhatsAppFonnte(selectedTagihan)}
+                                className="flex-1 py-4 rounded-2xl bg-[#25D366] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#20b858] transition-all"
+                            >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                                Kirim Otomatis (Fonnte)
+                            </button>
+                            <button
+                                onClick={() => sendWhatsApp(selectedTagihan)}
+                                className="flex-1 py-4 rounded-2xl bg-[#25D366]/10 text-[#25D366] font-bold flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/20"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                Buka via WA.me
+                            </button>
+                        </div>
                     </div>
                 )}
             </Modal>

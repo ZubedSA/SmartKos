@@ -26,6 +26,7 @@ const DEFAULT_TEMPLATE = "Halo {nama}, ini adalah tagihan kos kamar {kamar} untu
 export default function WhatsAppPage() {
     const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
     const [apiKey, setApiKey] = useState("");
+    const [fonnteToken, setFonnteToken] = useState("");
     const [autoReminder, setAutoReminder] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -60,6 +61,7 @@ export default function WhatsAppPage() {
 
         if (templateData) {
             setTemplate(templateData.isi_template);
+            setFonnteToken(templateData.fonnte_token || "");
             setTemplateId(templateData.id);
         }
         setLoading(false);
@@ -81,9 +83,16 @@ export default function WhatsAppPage() {
 
         // Update template
         if (templateId) {
-            await supabase.from("wa_templates").update({ isi_template: template }).eq("id", templateId);
+            await supabase.from("wa_templates").update({ 
+                isi_template: template,
+                fonnte_token: fonnteToken
+            }).eq("id", templateId);
         } else {
-            const { data } = await supabase.from("wa_templates").insert({ user_id: authUser.id, isi_template: template }).select().single();
+            const { data } = await supabase.from("wa_templates").insert({ 
+                user_id: authUser.id, 
+                isi_template: template,
+                fonnte_token: fonnteToken
+            }).select().single();
             if (data) setTemplateId(data.id);
         }
 
@@ -147,6 +156,22 @@ export default function WhatsAppPage() {
                                     onChange={(e) => setApiKey(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                     placeholder="Masukkan token dari fonnte.com"
+                                />
+                                <div className="flex items-center justify-between mb-1.5 mt-4">
+                                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider">Fonnte API Token</label>
+                                    <Link href="https://fonnte.com" target="_blank" className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Dapatkan Token
+                                    </Link>
+                                </div>
+                                <input
+                                    type="password"
+                                    value={fonnteToken}
+                                    onChange={(e) => setFonnteToken(e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    placeholder="Masukkan token dari fonnte.com untuk pengiriman otomatis"
                                 />
                             </div>
 
