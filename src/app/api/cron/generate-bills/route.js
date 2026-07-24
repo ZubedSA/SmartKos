@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 const BULAN_INDONESIA = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -16,7 +16,9 @@ export async function GET(request) {
         return new Response('Unauthorized', { status: 401 });
     }
 
-    const supabase = createClient();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const now = new Date();
     // Gunakan format "Bulan Tahun" agar unik setiap tahunnya
     const currentMonth = BULAN_INDONESIA[now.getMonth()];

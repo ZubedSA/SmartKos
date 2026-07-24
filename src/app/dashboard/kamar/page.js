@@ -35,7 +35,7 @@ export default function KamarPage() {
     const fetchKamar = async () => {
         setLoading(true);
         try {
-            let query = supabase.from("kamar").select("*, kos(nama_kos)");
+            let query = supabase.from("kamar").select("id, nomor, harga, status, kos_id, kos(nama_kos)");
             if (selectedKosId !== "all") {
                 query = query.eq("kos_id", selectedKosId);
             }

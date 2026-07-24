@@ -37,8 +37,8 @@ export default function PenyewaPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            let penyewaQuery = supabase.from("penyewa").select("*, kamar!inner(nomor, harga, kos!inner(id, nama_kos))").order("created_at", { ascending: false });
-            let kamarQuery = supabase.from("kamar").select("*, kos!inner(id, nama_kos)").order("nomor");
+            let penyewaQuery = supabase.from("penyewa").select("id, nama, no_hp, tanggal_masuk, jatuh_tempo, kamar_id, created_at, kamar!inner(nomor, harga, kos!inner(id, nama_kos))").order("created_at", { ascending: false });
+            let kamarQuery = supabase.from("kamar").select("id, nomor, harga, status, kos_id, kos!inner(id, nama_kos)").order("nomor");
 
             if (selectedKosId !== "all") {
                 penyewaQuery = penyewaQuery.eq("kamar.kos_id", selectedKosId);

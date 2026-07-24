@@ -12,7 +12,8 @@ export default function DataTable({ columns, data, actions, emptyMessage = "Belu
 
     return (
         <div className="bg-[#1e293b] border border-[#334155] rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Desktop View (hidden on mobile) */}
+            <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-[#334155]">
@@ -51,6 +52,37 @@ export default function DataTable({ columns, data, actions, emptyMessage = "Belu
                         ))}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Mobile View (Card layout, hidden on desktop) */}
+            <div className="block md:hidden">
+                <div className="divide-y divide-[#334155]">
+                    {data.map((row, idx) => (
+                        <div
+                            key={row.id || idx}
+                            onDoubleClick={() => onRowDoubleClick && onRowDoubleClick(row)}
+                            className={`p-4 hover:bg-[#334155]/40 transition-colors ${onRowDoubleClick ? "cursor-pointer select-none" : ""}`}
+                        >
+                            <div className="space-y-3">
+                                {columns.map((col) => (
+                                    <div key={col.key} className="flex justify-between items-start gap-4">
+                                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 pt-0.5">
+                                            {col.label}
+                                        </span>
+                                        <div className="text-sm text-slate-200 text-right">
+                                            {col.render ? col.render(row[col.key], row) : row[col.key]}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {actions && (
+                                <div className="pt-4 mt-4 border-t border-[#334155]/50 flex justify-end gap-2">
+                                    {actions(row)}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

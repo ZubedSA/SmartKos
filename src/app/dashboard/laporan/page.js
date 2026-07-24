@@ -16,8 +16,8 @@ export default function LaporanPage() {
     const [loading, setLoading] = useState(true);
     const [incomeData, setIncomeData] = useState([]);
     const [expenseData, setExpenseData] = useState([]);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState("all");
+    const [selectedYear, setSelectedYear] = useState("all");
 
     const supabase = createClient();
 
@@ -29,31 +29,61 @@ export default function LaporanPage() {
         setLoading(true);
         try {
             // Fetch income (lunas tagihan)
-            const incomeMonthName = MONTHS[selectedMonth];
             const { data: income, error: incomeError } = await supabase
                 .from("tagihan")
-                .select("*, penyewa(nama)")
-                .eq("status", "lunas")
-                .eq("bulan", incomeMonthName);
-            // Note: We'd ideally filter by Year too, but tagihan table currently only has 'bulan'.
-            // For now, filtering by bulan is the primary mechanism.
+                .select("id, bulan, jumlah, status, created_at, penyewa(nama)")
+                .eq("status", "lunas");
 
             if (incomeError) throw incomeError;
 
+            let filteredIncome = income || [];
+            if (selectedMonth !== "all" || selectedYear !== "all") {
+                filteredIncome = filteredIncome.filter(item => {
+                    if (!item.bulan) return false;
+                    const parts = item.bulan.split(" ");
+                    const monthName = parts[0];
+                    const yearNum = parts[1] ? parseInt(parts[1], 10) : new Date(item.created_at).getFullYear();
+
+                    if (selectedMonth !== "all") {
+                        const targetMonthName = MONTHS[parseInt(selectedMonth, 10)];
+                        if (monthName !== targetMonthName) return false;
+                    }
+
+                    if (selectedYear !== "all") {
+                        const targetYear = parseInt(selectedYear, 10);
+                        if (yearNum !== targetYear) return false;
+                    }
+
+                    return true;
+                });
+            }
+
             // Fetch expenses (operasional)
-            const startDate = new Date(selectedYear, selectedMonth, 1).toISOString().split("T")[0];
-            const endDate = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split("T")[0];
-
-            const { data: expenses, error: expenseError } = await supabase
+            let expenseQuery = supabase
                 .from("operasional")
-                .select("*")
-                .gte("tanggal", startDate)
-                .lte("tanggal", endDate);
+                .select("id, keterangan, jumlah, tanggal, kategori");
 
+            if (selectedYear !== "all" && selectedMonth !== "all") {
+                const startDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1).toISOString().split("T")[0];
+                const endDate = new Date(parseInt(selectedYear), parseInt(selectedMonth) + 1, 0).toISOString().split("T")[0];
+                expenseQuery = expenseQuery.gte("tanggal", startDate).lte("tanggal", endDate);
+            } else if (selectedYear !== "all") {
+                const startDate = `${selectedYear}-01-01`;
+                const endDate = `${selectedYear}-12-31`;
+                expenseQuery = expenseQuery.gte("tanggal", startDate).lte("tanggal", endDate);
+            }
+
+            const { data: expenses, error: expenseError } = await expenseQuery;
             if (expenseError) throw expenseError;
 
-            setIncomeData(income || []);
-            setExpenseData(expenses || []);
+            let filteredExpenses = expenses || [];
+            if (selectedMonth !== "all" && selectedYear === "all") {
+                const targetMonth = parseInt(selectedMonth, 10);
+                filteredExpenses = filteredExpenses.filter(item => new Date(item.tanggal).getMonth() === targetMonth);
+            }
+
+            setIncomeData(filteredIncome);
+            setExpenseData(filteredExpenses);
         } catch (error) {
             console.error("Error fetching report data:", error);
         } finally {
@@ -121,16 +151,18 @@ export default function LaporanPage() {
                 <div className="flex gap-2 bg-[#1e293b] p-1 rounded-2xl border border-slate-700 w-full md:w-auto">
                     <select
                         value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                        className="bg-transparent text-white text-sm font-medium px-4 py-2 focus:outline-none"
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="bg-transparent text-white text-sm font-medium px-4 py-2 focus:outline-none cursor-pointer"
                     >
+                        <option value="all" className="bg-[#1e293b]">Semua Bulan</option>
                         {MONTHS.map((m, i) => <option key={m} value={i} className="bg-[#1e293b]">{m}</option>)}
                     </select>
                     <select
                         value={selectedYear}
-                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                        className="bg-transparent text-white text-sm font-medium px-4 py-2 focus:outline-none"
+                        onChange={(e) => setSelectedYear(e.target.value)}
+                        className="bg-transparent text-white text-sm font-medium px-4 py-2 focus:outline-none cursor-pointer"
                     >
+                        <option value="all" className="bg-[#1e293b]">Semua Tahun</option>
                         {YEARS.map(y => <option key={y} value={y} className="bg-[#1e293b]">{y}</option>)}
                     </select>
                 </div>

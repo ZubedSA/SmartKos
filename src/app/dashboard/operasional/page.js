@@ -10,6 +10,12 @@ import ConfirmationModal from "@/components/ConfirmationModal";
 const KATEGORI_OPTIONS = ["Listrik", "Air", "Kebersihan", "Keamanan", "Perbaikan", "Lainnya"];
 const formatRupiah = (val) => Number(val).toLocaleString("id-ID");
 
+const MONTHS = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
+const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+
 export default function OperasionalPage() {
     const { selectedKosId, kosList } = useKos();
     const [loading, setLoading] = useState(true);
@@ -25,28 +31,47 @@ export default function OperasionalPage() {
     });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
 
+    const [selectedMonth, setSelectedMonth] = useState("all");
+    const [selectedYear, setSelectedYear] = useState("all");
+
     const supabase = createClient();
 
     useEffect(() => {
         fetchOperasional();
-    }, [selectedKosId]);
+    }, [selectedKosId, selectedMonth, selectedYear]);
 
     const fetchOperasional = async () => {
         setLoading(true);
         try {
             let query = supabase
                 .from("operasional")
-                .select("*")
+                .select("id, keterangan, jumlah, tanggal, kategori, kos_id")
                 .order("tanggal", { ascending: false });
 
             if (selectedKosId !== "all") {
                 query = query.eq("kos_id", selectedKosId);
             }
 
-            const { data: expenses, error } = await query;
+            if (selectedYear !== "all" && selectedMonth !== "all") {
+                const startDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1).toISOString().split("T")[0];
+                const endDate = new Date(parseInt(selectedYear), parseInt(selectedMonth) + 1, 0).toISOString().split("T")[0];
+                query = query.gte("tanggal", startDate).lte("tanggal", endDate);
+            } else if (selectedYear !== "all") {
+                const startDate = `${selectedYear}-01-01`;
+                const endDate = `${selectedYear}-12-31`;
+                query = query.gte("tanggal", startDate).lte("tanggal", endDate);
+            }
 
+            const { data: expenses, error } = await query;
             if (error) throw error;
-            setData(expenses || []);
+
+            let filtered = expenses || [];
+            if (selectedMonth !== "all" && selectedYear === "all") {
+                const targetMonth = parseInt(selectedMonth, 10);
+                filtered = filtered.filter(item => new Date(item.tanggal).getMonth() === targetMonth);
+            }
+
+            setData(filtered);
         } catch (error) {
             console.error("Error fetching operational data:", error);
         } finally {
@@ -104,13 +129,14 @@ export default function OperasionalPage() {
         }
     };
 
-    const totalBulanIni = data
-        .filter(item => {
-            const d = new Date(item.tanggal);
-            const now = new Date();
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        })
-        .reduce((acc, curr) => acc + curr.jumlah, 0);
+    const totalPeriodeIni = data.reduce((acc, curr) => acc + (curr.jumlah || 0), 0);
+
+    const getPeriodeLabel = () => {
+        if (selectedMonth === "all" && selectedYear === "all") return "Semua Periode";
+        if (selectedMonth === "all") return `Semua Bulan ${selectedYear}`;
+        if (selectedYear === "all") return `${MONTHS[parseInt(selectedMonth)]} (Semua Tahun)`;
+        return `${MONTHS[parseInt(selectedMonth)]} ${selectedYear}`;
+    };
 
     const columns = [
         {
@@ -137,27 +163,50 @@ export default function OperasionalPage() {
 
     return (
         <div className="pb-24 lg:pb-0">
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Biaya Operasional</h1>
+                    <h1 className="text-2xl font-bold text-white mb-1">Biaya Operasional</h1>
                     <p className="text-slate-400 text-sm">Kelola pengeluaran rutin untuk pemeliharaan kos.</p>
                 </div>
-                <button
-                    onClick={handleAdd}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold shadow-lg shadow-red-500/20 hover:scale-105 transition-all"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Catat Biaya
-                </button>
+
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    {/* Month & Year Filter */}
+                    <div className="flex gap-2 bg-[#1e293b] p-1.5 rounded-2xl border border-slate-700">
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="bg-transparent text-white text-sm font-medium px-3 py-1.5 focus:outline-none cursor-pointer"
+                        >
+                            <option value="all" className="bg-[#1e293b]">Semua Bulan</option>
+                            {MONTHS.map((m, i) => <option key={m} value={i} className="bg-[#1e293b]">{m}</option>)}
+                        </select>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            className="bg-transparent text-white text-sm font-medium px-3 py-1.5 focus:outline-none cursor-pointer"
+                        >
+                            <option value="all" className="bg-[#1e293b]">Semua Tahun</option>
+                            {YEARS.map(y => <option key={y} value={y} className="bg-[#1e293b]">{y}</option>)}
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={handleAdd}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold shadow-lg shadow-red-500/20 hover:scale-105 transition-all text-sm"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Catat Biaya
+                    </button>
+                </div>
             </div>
 
             <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 mb-8 flex items-center justify-between backdrop-blur-sm">
                 <div>
-                    <p className="text-red-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Pengeluaran Bulan Ini</p>
+                    <p className="text-red-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Pengeluaran ({getPeriodeLabel()})</p>
                     <h2 className="text-3xl font-black text-white">
-                        Rp {formatRupiah(totalBulanIni)}
+                        Rp {formatRupiah(totalPeriodeIni)}
                     </h2>
                 </div>
                 <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center rotate-180">

@@ -162,12 +162,59 @@ export default function AdminUsersPage() {
         },
     ];
 
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const handleDeleteUser = (user) => {
+        setConfirmModal({
+            isOpen: true,
+            type: "danger",
+            title: "Hapus Akun User Permanen",
+            message: `Apakah Anda yakin ingin menghapus akun "${user.name}" (${user.email})? Tindakan ini bersifat PERMANEN dan akan menghapus seluruh data user dan properti miliknya.`,
+            confirmText: "Hapus Permanen",
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, loading: true }));
+                try {
+                    const { error } = await supabase.from("users").delete().eq("id", user.id);
+                    if (error) throw error;
+                    alert(`Akun ${user.name} berhasil dihapus.`);
+                    await fetchUsers();
+                } catch (err) {
+                    alert("Gagal menghapus user: " + err.message);
+                } finally {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, loading: false }));
+                }
+            }
+        });
+    };
+
+    const filteredUsers = users.filter(u => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+    });
+
     return (
         <div>
-            <div className="mb-8">
-                <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">Kelola Users</h1>
-                <p className="text-slate-400">Kelola akun owner dan masa aktif subscription.</p>
-                <p className="text-xs text-indigo-400 mt-2">* Double click nama user untuk reset password</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                    <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">Kelola Users</h1>
+                    <p className="text-slate-400">Kelola akun owner, masa aktif subscription, dan hapus user.</p>
+                    <p className="text-xs text-indigo-400 mt-2">* Double click nama user untuk reset password</p>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative w-full md:w-72">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Cari nama atau email..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+                    />
+                </div>
             </div>
 
             {loading ? (
@@ -180,14 +227,14 @@ export default function AdminUsersPage() {
             ) : (
                 <DataTable
                     columns={columns}
-                    data={users}
+                    data={filteredUsers}
                     emptyMessage="Belum ada user terdaftar."
                     actions={(row) => (
-                        <>
+                        <div className="flex gap-2 items-center">
                             <button
                                 onClick={() => toggleStatus(row)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${row.subscription_status === "active"
-                                    ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                                    ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
                                     : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
                                     }`}
                             >
@@ -199,7 +246,16 @@ export default function AdminUsersPage() {
                             >
                                 Set Masa Aktif
                             </button>
-                        </>
+                            <button
+                                onClick={() => handleDeleteUser(row)}
+                                className="p-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                                title="Hapus Akun Permanen"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
                     )}
                 />
             )}

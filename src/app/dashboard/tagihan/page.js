@@ -7,10 +7,23 @@ import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
 import { useKos } from "@/context/KosContext";
 
-const BULAN_OPTIONS = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-];
+const getBulanOptions = () => {
+    const months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    const currentYear = new Date().getFullYear();
+    const options = [];
+    months.forEach((m) => {
+        options.push(`${m} ${currentYear}`);
+    });
+    months.forEach((m) => {
+        options.push(`${m} ${currentYear + 1}`);
+    });
+    return options;
+};
+
+const BULAN_OPTIONS = getBulanOptions();
 
 export default function TagihanPage() {
     const { selectedKosId } = useKos();
@@ -28,6 +41,11 @@ export default function TagihanPage() {
     const [receiptConfig, setReceiptConfig] = useState(null);
     const [autoBillingEnabled, setAutoBillingEnabled] = useState(false);
     const [togglingAutoBilling, setTogglingAutoBilling] = useState(false);
+    
+    // States for Generate Tagihan
+    const [penyewaList, setPenyewaList] = useState([]);
+    const [selectedPenyewa, setSelectedPenyewa] = useState("all");
+    const [searchQuery, setSearchQuery] = useState("");
 
     const supabase = createClient();
 
@@ -35,7 +53,21 @@ export default function TagihanPage() {
         fetchTagihan();
         fetchTemplate();
         fetchSettings();
+        fetchPenyewaList();
     }, [selectedKosId]);
+
+    const fetchPenyewaList = async () => {
+        try {
+            let query = supabase.from("penyewa").select("id, nama, kamar!inner(kos_id)").order("nama");
+            if (selectedKosId !== "all") {
+                query = query.eq("kamar.kos_id", selectedKosId);
+            }
+            const { data } = await query;
+            if (data) setPenyewaList(data);
+        } catch (error) {
+            console.error("Error fetching penyewa:", error);
+        }
+    };
 
 
     const fetchSettings = async () => {
@@ -76,7 +108,7 @@ export default function TagihanPage() {
 
             let query = supabase
                 .from("tagihan")
-                .select("*, penyewa!inner(id, nama, no_hp, jatuh_tempo, kamar!inner(nomor, harga, kos!inner(id, nama_kos, user_id)))")
+                .select("id, bulan, jumlah, status, tanggal_kirim_wa, created_at, penyewa_id, penyewa!inner(id, nama, no_hp, jatuh_tempo, kamar!inner(nomor, harga, kos!inner(id, nama_kos, user_id)))")
                 .order("created_at", { ascending: false });
 
             if (selectedKosId !== "all") {
@@ -121,12 +153,23 @@ export default function TagihanPage() {
                 penyewaQuery = penyewaQuery.eq("kamar.kos_id", selectedKosId);
             }
 
-            const { data: penyewaList, error } = await penyewaQuery;
+            const { data: fetchPenyewa, error } = await penyewaQuery;
 
             if (error) throw error;
 
-            if (!penyewaList || penyewaList.length === 0) {
+            if (!fetchPenyewa || fetchPenyewa.length === 0) {
                 alert("Belum ada penyewa!");
+                setGenerating(false);
+                return;
+            }
+
+            // Filter penyewa based on selection
+            const targetPenyewaList = selectedPenyewa === "all" 
+                ? fetchPenyewa 
+                : fetchPenyewa.filter(p => p.id === selectedPenyewa);
+
+            if (targetPenyewaList.length === 0) {
+                alert("Penyewa yang dipilih tidak ditemukan.");
                 setGenerating(false);
                 return;
             }
@@ -135,7 +178,7 @@ export default function TagihanPage() {
                 .filter(t => t.bulan === selectedBulan)
                 .map(t => t.penyewa_id);
 
-            const newTagihan = penyewaList
+            const newTagihan = targetPenyewaList
                 .filter(p => !existingIds.includes(p.id))
                 .map(p => ({
                     penyewa_id: p.id,
@@ -297,7 +340,18 @@ export default function TagihanPage() {
         }
     };
 
-    const filteredData = tagihanList.filter(t => t.status === activeTab);
+    const filteredData = tagihanList.filter(t => {
+        if (t.status !== activeTab) return false;
+        if (!searchQuery) return true;
+        
+        const q = searchQuery.toLowerCase();
+        const namaPenyewa = t.penyewa?.nama?.toLowerCase() || "";
+        const kamar = t.penyewa?.kamar?.nomor?.toString().toLowerCase() || "";
+        const kos = t.penyewa?.kamar?.kos?.nama_kos?.toLowerCase() || "";
+        const bulan = t.bulan?.toLowerCase() || "";
+        
+        return namaPenyewa.includes(q) || kamar.includes(q) || kos.includes(q) || bulan.includes(q);
+    });
 
     const columns = [
         {
@@ -375,20 +429,35 @@ export default function TagihanPage() {
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 p-1 bg-[#1e293b] rounded-xl w-fit mb-6">
-                <button
-                    onClick={() => setActiveTab("belum")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "belum" ? "bg-indigo-500 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                >
-                    Belum Lunas ({tagihanList.filter(t => t.status === "belum").length})
-                </button>
-                <button
-                    onClick={() => setActiveTab("lunas")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "lunas" ? "bg-emerald-500 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                >
-                    Lunas ({tagihanList.filter(t => t.status === "lunas").length})
-                </button>
+            {/* Tabs & Search */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div className="flex gap-2 p-1 bg-[#1e293b] rounded-xl w-fit">
+                    <button
+                        onClick={() => setActiveTab("belum")}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "belum" ? "bg-indigo-500 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
+                    >
+                        Belum Lunas ({tagihanList.filter(t => t.status === "belum").length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("lunas")}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "lunas" ? "bg-emerald-500 text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
+                    >
+                        Lunas ({tagihanList.filter(t => t.status === "lunas").length})
+                    </button>
+                </div>
+
+                <div className="relative w-full md:w-72">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Cari nama, kamar, bulan..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1e293b]/80 border border-[#334155] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
+                    />
+                </div>
             </div>
 
             {/* Generate Section */}
@@ -411,11 +480,21 @@ export default function TagihanPage() {
                     </div>
 
                     <h3 className="text-sm font-semibold text-white mb-4">Generate Tagihan Manual</h3>
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex flex-col md:flex-row gap-3">
+                        <select
+                            value={selectedPenyewa}
+                            onChange={(e) => setSelectedPenyewa(e.target.value)}
+                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all md:w-48"
+                        >
+                            <option value="all">Semua Penyewa</option>
+                            {penyewaList.map(p => (
+                                <option key={p.id} value={p.id}>{p.nama}</option>
+                            ))}
+                        </select>
                         <select
                             value={selectedBulan}
                             onChange={(e) => setSelectedBulan(e.target.value)}
-                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all md:w-40"
                         >
                             <option value="">Pilih Bulan</option>
                             {BULAN_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -449,13 +528,22 @@ export default function TagihanPage() {
                     actions={(row) => (
                         <div className="flex gap-2">
                             {row.status === "belum" && (
-                                <button
-                                    onClick={() => sendWhatsApp(row)}
-                                    className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all"
-                                    title="Kirim Pengingat WA"
-                                >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
-                                </button>
+                                <>
+                                    <button
+                                        onClick={() => handleDoubleClick(row)}
+                                        className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                                        title="Selesaikan Pembayaran"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                    </button>
+                                    <button
+                                        onClick={() => sendWhatsApp(row)}
+                                        className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                                        title="Kirim Pengingat WA"
+                                    >
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                                    </button>
+                                </>
                             )}
                             {row.status === "lunas" && (
                                 <button

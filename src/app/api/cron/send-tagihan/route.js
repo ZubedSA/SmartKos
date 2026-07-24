@@ -2,6 +2,32 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { replacePlaceholders } from "@/lib/whatsapp";
 
+const BULAN_INDONESIA = {
+    "Januari": 0, "Februari": 1, "Maret": 2, "April": 3, "Mei": 4, "Juni": 5,
+    "Juli": 6, "Agustus": 7, "September": 8, "Oktober": 9, "November": 10, "Desember": 11
+};
+
+function isFutureMonth(bulanStr) {
+    if (!bulanStr) return false;
+    const parts = bulanStr.split(" ");
+    if (parts.length !== 2) return false;
+    
+    const monthName = parts[0];
+    const year = parseInt(parts[1], 10);
+    const monthIndex = BULAN_INDONESIA[monthName];
+    
+    if (monthIndex === undefined || isNaN(year)) return false;
+    
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    if (year > currentYear) return true;
+    if (year === currentYear && monthIndex > currentMonth) return true;
+    
+    return false;
+}
+
 export const dynamic = "force-dynamic";
 
 // This cron job should be triggered daily
@@ -18,10 +44,6 @@ export async function GET(request) {
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // Calculate current day in WIB (Asia/Jakarta) instead of UTC
-        const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-        const currentDay = today.getDate().toString();
-        
         // 1. Fetch all unpaid tagihan
         const { data: tagihanList, error: tagihanError } = await supabase
             .from("tagihan")
@@ -30,11 +52,12 @@ export async function GET(request) {
 
         if (tagihanError) throw tagihanError;
 
-        // Filter tagihan where jatuh_tempo matches currentDay
-        const dueTagihan = tagihanList.filter(t => t.penyewa.jatuh_tempo === currentDay);
+        // Kirim ke semua tagihan yang belum lunas (tanpa memfilter jatuh tempo)
+        // TETAPI filter tagihan yang bulannya di masa depan (advance payment) agar tidak tertagih sebelum waktunya
+        const dueTagihan = tagihanList.filter(t => !isFutureMonth(t.bulan));
 
         if (dueTagihan.length === 0) {
-            return NextResponse.json({ success: true, message: "Tidak ada tagihan yang jatuh tempo hari ini." });
+            return NextResponse.json({ success: true, message: "Tidak ada tagihan yang belum lunas saat ini." });
         }
 
         // 2. Fetch all templates & fonnte tokens
