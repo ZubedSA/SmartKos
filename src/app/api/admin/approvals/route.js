@@ -95,7 +95,7 @@ export async function POST(request) {
                 .eq("id", userId)
                 .single();
 
-            if (targetUser?.subscription_status === "pending_renewal") {
+            if (targetUser?.subscription_status === "pending_renewal" || targetUser?.subscription_status === "inactive") {
                 // For renewal rejection, reset to inactive status without deleting account
                 await supabaseAdmin
                     .from("users")

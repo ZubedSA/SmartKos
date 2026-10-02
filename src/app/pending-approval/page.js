@@ -43,7 +43,7 @@ export default function PendingApprovalPage() {
         router.refresh();
     };
 
-    const isRenewal = user?.subscription_status === "pending_renewal";
+    const isRenewal = user?.subscription_status === "inactive" || user?.subscription_status === "pending_renewal";
 
     const handleContactAdmin = () => {
         const message = isRenewal

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { QRIS_IMAGE_DATA } from "@/lib/qrisData";
 
 export default function BillingPage() {
     const [user, setUser] = useState(null);
@@ -92,6 +93,25 @@ export default function BillingPage() {
         router.refresh();
     };
 
+    const [copiedText, setCopiedText] = useState("");
+
+    const copyToClipboard = (text, label) => {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+        }
+        setCopiedText(label);
+        setTimeout(() => setCopiedText(""), 2500);
+    };
+
+    const handleDownloadQRIS = () => {
+        const link = document.createElement("a");
+        link.href = QRIS_IMAGE_DATA;
+        link.download = "QRIS_SmartKos_Pembayaran.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const triggerPaymentSimulation = () => {
         setPayStep(1);
         setShowPayModal(true);
@@ -100,37 +120,33 @@ export default function BillingPage() {
     const handleActivateSubscription = async () => {
         setPayStep(2);
         
-        // Process renewal request
-        setTimeout(async () => {
-            try {
-                const selectedPlanDetails = plans[selectedPlan];
-                
-                // Submit renewal request to Admin for approval
-                const { error } = await supabase
-                    .from("users")
-                    .update({
-                        is_approved: false,
-                        subscription_status: "pending_renewal"
-                    })
-                    .eq("id", user.id);
+        try {
+            const res = await fetch("/api/billing/renewal", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: user.id,
+                    planId: selectedPlan
+                })
+            });
 
-                if (error) throw error;
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Gagal mengirim pengajuan");
 
-                // Update local state
-                setUser(prev => ({
-                    ...prev,
-                    is_approved: false,
-                    subscription_status: "pending_renewal"
-                }));
+            // Update local state
+            setUser(prev => ({
+                ...prev,
+                is_approved: false,
+                subscription_status: "inactive"
+            }));
 
-                setPayStep(3);
-            } catch (err) {
-                console.error("Gagal mengirim pengajuan perpanjangan:", err);
-                alert("Terjadi kesalahan teknis saat mengirim pengajuan perpanjangan. Silakan coba lagi.");
-                setPayStep(1);
-                setShowPayModal(false);
-            }
-        }, 2000);
+            setPayStep(3);
+        } catch (err) {
+            console.error("Gagal mengirim pengajuan perpanjangan:", err);
+            alert("Gagal mengirim pengajuan perpanjangan: " + err.message);
+            setPayStep(1);
+            setShowPayModal(false);
+        }
     };
 
     if (loading) {
@@ -292,20 +308,75 @@ export default function BillingPage() {
                 </div>
 
                 {/* Footer manual contact */}
-                <div className="text-center bg-[#1e293b]/30 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-3xl mx-auto shadow-xl">
-                    <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                        Lebih menyukai pembayaran manual? Silakan hubungi admin kami langsung melalui WhatsApp untuk melakukan transfer manual dan konfirmasi data.
-                    </p>
-                    <a
-                        href={`https://wa.me/6281717594886?text=${encodeURIComponent("Halo Admin SmartKos, saya ingin memperpanjang paket langganan secara manual.")}`}
-                        target="_blank"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-semibold transition-all shadow-md"
-                    >
-                        <svg className="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-                        </svg>
-                        Hubungi Admin (WhatsApp Manual)
-                    </a>
+                <div className="bg-[#1e293b]/50 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-4xl mx-auto shadow-xl space-y-6">
+                    <div className="text-center">
+                        <h3 className="text-lg font-bold text-white mb-1">Metode Pembayaran & Konfirmasi</h3>
+                        <p className="text-slate-400 text-xs leading-relaxed max-w-xl mx-auto">
+                            Lakukan pembayaran langganan melalui QRIS, Bank SeaBank, atau E-Wallet DANA di bawah ini, kemudian konfirmasi ke Admin via WhatsApp.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                        {/* SeaBank Card */}
+                        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400 block mb-1">Bank SeaBank</span>
+                                <p className="text-base font-mono font-bold text-white">901821620649</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">a.n. SmartKos Management</p>
+                            </div>
+                            <button
+                                onClick={() => copyToClipboard("901821620649", "seabank_footer")}
+                                className="mt-3 w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-all"
+                            >
+                                {copiedText === "seabank_footer" ? "✓ Tersalin" : "Salin Rekening"}
+                            </button>
+                        </div>
+
+                        {/* DANA Card */}
+                        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block mb-1">E-Wallet DANA</span>
+                                <p className="text-base font-mono font-bold text-white">081717594886</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">a.n. SmartKos Management</p>
+                            </div>
+                            <button
+                                onClick={() => copyToClipboard("081717594886", "dana_footer")}
+                                className="mt-3 w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-all"
+                            >
+                                {copiedText === "dana_footer" ? "✓ Tersalin" : "Salin DANA"}
+                            </button>
+                        </div>
+
+                        {/* QRIS Card */}
+                        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 block mb-1">QRIS All Payment</span>
+                                <p className="text-xs text-slate-300 leading-tight">Scan QRIS dari m-Banking / E-Wallet</p>
+                            </div>
+                            <button
+                                onClick={handleDownloadQRIS}
+                                className="mt-3 w-full py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Unduh QRIS
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-2 text-center">
+                        <a
+                            href={`https://wa.me/6281717594886?text=${encodeURIComponent("Halo Admin SmartKos, saya sudah melakukan pembayaran perpanjangan/pembelian langganan. Mohon diproses dan disetujui. Terima kasih!")}`}
+                            target="_blank"
+                            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+                        >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                            </svg>
+                            Konfirmasi Pembayaran via WhatsApp
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -316,7 +387,7 @@ export default function BillingPage() {
                         {payStep < 3 && (
                             <button
                                 onClick={() => setShowPayModal(false)}
-                                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors"
+                                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors z-10"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -325,68 +396,130 @@ export default function BillingPage() {
                         )}
 
                         {payStep === 1 && (
-                            <div className="p-6">
-                                <h3 className="text-lg font-bold text-white mb-1">Simulasi Pembayaran Premium</h3>
-                                <p className="text-xs text-slate-400 mb-6">Paket yang dipilih: <span className="text-indigo-400 font-semibold">{plans[selectedPlan].name}</span> (Rp {plans[selectedPlan].price.toLocaleString("id-ID")})</p>
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white mb-0.5">Pembayaran Langganan</h3>
+                                    <p className="text-xs text-slate-400">Paket: <span className="text-indigo-400 font-semibold">{plans[selectedPlan].name}</span> — <span className="text-white font-bold">Rp {plans[selectedPlan].price.toLocaleString("id-ID")}</span></p>
+                                </div>
 
-                                <div className="space-y-4">
-                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Metode Pembayaran (Demo):</label>
-                                    <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-3">
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Pilih Metode Pembayaran:</label>
+                                    <div className="grid grid-cols-3 gap-2">
                                         <div
                                             onClick={() => setPayMethod("qris")}
-                                            className={`p-3 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                                                payMethod === "qris" ? "border-indigo-500 bg-indigo-500/5 text-white" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
+                                            className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                                                payMethod === "qris" ? "border-indigo-500 bg-indigo-500/10 text-white font-bold" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
                                             }`}
                                         >
-                                            <span className="font-extrabold text-sm">QRIS</span>
+                                            <span className="text-xs font-extrabold text-indigo-400">QRIS</span>
+                                        </div>
+                                        <div
+                                            onClick={() => setPayMethod("seabank")}
+                                            className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                                                payMethod === "seabank" ? "border-teal-500 bg-teal-500/10 text-white font-bold" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
+                                            }`}
+                                        >
+                                            <span className="text-xs font-extrabold text-teal-400">SeaBank</span>
                                         </div>
                                         <div
                                             onClick={() => setPayMethod("dana")}
-                                            className={`p-3 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                                                payMethod === "dana" ? "border-indigo-500 bg-indigo-500/5 text-white" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
+                                            className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                                                payMethod === "dana" ? "border-sky-500 bg-sky-500/10 text-white font-bold" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
                                             }`}
                                         >
-                                            <span className="font-extrabold text-sm text-sky-400">DANA</span>
-                                        </div>
-                                        <div
-                                            onClick={() => setPayMethod("bca")}
-                                            className={`p-3 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                                                payMethod === "bca" ? "border-indigo-500 bg-indigo-500/5 text-white" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
-                                            }`}
-                                        >
-                                            <span className="font-extrabold text-sm text-blue-500">Transfer BCA</span>
-                                        </div>
-                                        <div
-                                            onClick={() => setPayMethod("mandiri")}
-                                            className={`p-3 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                                                payMethod === "mandiri" ? "border-indigo-500 bg-indigo-500/5 text-white" : "border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600"
-                                            }`}
-                                        >
-                                            <span className="font-extrabold text-sm text-yellow-500">Transfer Mandiri</span>
+                                            <span className="text-xs font-extrabold text-sky-400">DANA</span>
                                         </div>
                                     </div>
 
+                                    {/* Payment Detail Display */}
+                                    {payMethod === "qris" && (
+                                        <div className="text-center bg-slate-900/80 p-4 rounded-2xl border border-slate-700/60 space-y-3">
+                                            <div className="bg-white p-2.5 rounded-2xl inline-block shadow-xl border border-slate-200">
+                                                <img src={QRIS_IMAGE_DATA} alt="QRIS SmartKos" className="w-48 h-48 mx-auto rounded-lg object-contain" />
+                                            </div>
+                                            <div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDownloadQRIS}
+                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all mx-auto active:scale-95"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                    </svg>
+                                                    Unduh Gambar QRIS
+                                                </button>
+                                                <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                                                    Scan QRIS dari m-Banking (BCA, Mandiri, BRI, BNI, dll) atau E-Wallet (DANA, GoPay, OVO, ShopeePay, LinkAja).
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {payMethod === "seabank" && (
+                                        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-700/60 text-left space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-semibold text-slate-400">Bank Tujuan:</span>
+                                                <span className="px-2.5 py-0.5 rounded-md bg-teal-500/10 text-teal-300 font-extrabold text-xs border border-teal-500/30">SeaBank</span>
+                                            </div>
+                                            <div className="bg-slate-950 p-3 rounded-xl flex justify-between items-center border border-slate-800">
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Nomor Rekening</p>
+                                                    <p className="text-base font-mono font-bold text-white tracking-wider">901821620649</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard("901821620649", "seabank_modal")}
+                                                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-teal-300 font-bold border border-slate-700 transition-all"
+                                                >
+                                                    {copiedText === "seabank_modal" ? "✓ Tersalin" : "Salin No."}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {payMethod === "dana" && (
+                                        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-700/60 text-left space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-semibold text-slate-400">E-Wallet Tujuan:</span>
+                                                <span className="px-2.5 py-0.5 rounded-md bg-sky-500/10 text-sky-300 font-extrabold text-xs border border-sky-500/30">DANA</span>
+                                            </div>
+                                            <div className="bg-slate-950 p-3 rounded-xl flex justify-between items-center border border-slate-800">
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Nomor DANA</p>
+                                                    <p className="text-base font-mono font-bold text-white tracking-wider">081717594886</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard("081717594886", "dana_modal")}
+                                                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-sky-300 font-bold border border-slate-700 transition-all"
+                                                >
+                                                    {copiedText === "dana_modal" ? "✓ Tersalin" : "Salin No."}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Virtual bill details */}
-                                    <div className="bg-[#0f172a] border border-slate-700/50 rounded-xl p-4 mt-6 text-xs text-slate-300">
+                                    <div className="bg-[#0f172a] border border-slate-700/50 rounded-xl p-3 text-xs text-slate-300">
                                         <div className="flex justify-between py-1">
                                             <span>Nominal Paket</span>
                                             <span>Rp {plans[selectedPlan].price.toLocaleString("id-ID")}</span>
                                         </div>
-                                        <div className="flex justify-between py-1 border-b border-slate-850 pb-2">
-                                            <span>Kode Unik / Biaya Layanan</span>
-                                            <span className="text-emerald-400">Gratis (Simulasi)</span>
+                                        <div className="flex justify-between py-1 border-b border-slate-800 pb-1">
+                                            <span>Status Pengajuan</span>
+                                            <span className="text-amber-400 font-semibold">Menunggu Persetujuan Admin</span>
                                         </div>
-                                        <div className="flex justify-between py-1 pt-2 font-bold text-sm text-white">
+                                        <div className="flex justify-between py-1 pt-1 font-bold text-sm text-white">
                                             <span>Total Pembayaran</span>
-                                            <span>Rp {plans[selectedPlan].price.toLocaleString("id-ID")}</span>
+                                            <span className="text-emerald-400">Rp {plans[selectedPlan].price.toLocaleString("id-ID")}</span>
                                         </div>
                                     </div>
 
                                     <button
                                         onClick={handleActivateSubscription}
-                                        className="w-full mt-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-sm uppercase rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all shadow-lg"
+                                        className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-sm uppercase rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all shadow-lg"
                                     >
-                                        Bayar & Aktifkan Otomatis (Simulasi)
+                                        Bayar & Ajukan Perpanjangan
                                     </button>
                                 </div>
                             </div>

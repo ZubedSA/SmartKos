@@ -119,7 +119,7 @@ export default function AdminApprovalsPage() {
             key: "subscription_status",
             label: "Jenis Pengajuan",
             render: (val) => (
-                val === "pending_renewal" ? (
+                (val === "pending_renewal" || val === "inactive") ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
                         🔄 Perpanjangan
                     </span>
@@ -216,7 +216,7 @@ export default function AdminApprovalsPage() {
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-2">
                                         <h3 className="font-semibold text-white text-sm truncate">{user.name}</h3>
-                                        {user.subscription_status === "pending_renewal" ? (
+                                        {(user.subscription_status === "pending_renewal" || user.subscription_status === "inactive") ? (
                                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
                                                 🔄 Perpanjangan
                                             </span>
