@@ -44,7 +44,9 @@ export default function Sidebar({ items, title, user, onLogout, isOpen, onClose 
                     </button>
                 </div>
 
-                <KosSwitcher variant="sidebar" />
+                {title !== "Admin Panel" && !pathname?.startsWith("/admin") && (
+                    <KosSwitcher variant="sidebar" />
+                )}
 
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

@@ -100,26 +100,17 @@ export default function BillingPage() {
     const handleActivateSubscription = async () => {
         setPayStep(2);
         
-        // Simulate processing for 2 seconds
+        // Process renewal request
         setTimeout(async () => {
             try {
                 const selectedPlanDetails = plans[selectedPlan];
-                let baseDate = new Date();
                 
-                // If current subscription is active, extend from current expiry date.
-                // Otherwise, extend from today.
-                if (user?.subscription_expired_at && new Date(user.subscription_expired_at) > new Date()) {
-                    baseDate = new Date(user.subscription_expired_at);
-                }
-                
-                const newExpirationDate = new Date(baseDate.getTime() + selectedPlanDetails.duration * 24 * 60 * 60 * 1000);
-                const expiryString = newExpirationDate.toISOString().split("T")[0];
-
+                // Submit renewal request to Admin for approval
                 const { error } = await supabase
                     .from("users")
                     .update({
-                        subscription_status: "active",
-                        subscription_expired_at: expiryString
+                        is_approved: false,
+                        subscription_status: "pending_renewal"
                     })
                     .eq("id", user.id);
 
@@ -128,15 +119,14 @@ export default function BillingPage() {
                 // Update local state
                 setUser(prev => ({
                     ...prev,
-                    subscription_status: "active",
-                    subscription_expired_at: expiryString
+                    is_approved: false,
+                    subscription_status: "pending_renewal"
                 }));
 
                 setPayStep(3);
-                router.refresh();
             } catch (err) {
-                console.error("Gagal mengaktifkan langganan:", err);
-                alert("Terjadi kesalahan teknis saat mengaktifkan langganan. Silakan coba lagi.");
+                console.error("Gagal mengirim pengajuan perpanjangan:", err);
+                alert("Terjadi kesalahan teknis saat mengirim pengajuan perpanjangan. Silakan coba lagi.");
                 setPayStep(1);
                 setShowPayModal(false);
             }
@@ -417,26 +407,22 @@ export default function BillingPage() {
 
                         {payStep === 3 && (
                             <div className="p-8 text-center">
-                                <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 text-3xl">
-                                    ✓
+                                <div className="w-16 h-16 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto mb-4 text-3xl">
+                                    ⏳
                                 </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Pembayaran Berhasil!</h3>
+                                <h3 className="text-xl font-bold text-white mb-2">Pengajuan Berhasil Dikirim!</h3>
                                 <p className="text-xs text-slate-300 leading-relaxed mb-6 max-w-xs mx-auto">
-                                    Selamat! Paket <span className="text-indigo-400 font-semibold">{plans[selectedPlan].name}</span> Anda telah aktif hingga{" "}
-                                    <span className="text-white font-semibold">
-                                        {user?.subscription_expired_at ? new Date(user.subscription_expired_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : "-"}
-                                    </span>
-                                    . Seluruh fitur SmartKos kini dapat Anda gunakan kembali sepenuhnya.
+                                    Pengajuan perpanjangan paket <span className="text-indigo-400 font-semibold">{plans[selectedPlan].name}</span> Anda telah terkirim. Akun Anda sedang <span className="text-amber-400 font-semibold">Menunggu Persetujuan Admin</span> sebelum aktif kembali.
                                 </p>
                                 <button
                                     onClick={() => {
                                         setShowPayModal(false);
-                                        router.push("/dashboard");
+                                        router.push("/pending-approval");
                                         router.refresh();
                                     }}
-                                    className="w-full py-3 bg-indigo-500 text-white font-bold text-sm uppercase rounded-xl hover:bg-indigo-600 transition-all shadow-lg"
+                                    className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm uppercase rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg"
                                 >
-                                    Masuk ke Dashboard
+                                    Cek Status Persetujuan Admin
                                 </button>
                             </div>
                         )}

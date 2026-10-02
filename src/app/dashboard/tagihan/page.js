@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase";
 import { formatRupiah, replacePlaceholders, generateWhatsAppLink } from "@/lib/whatsapp";
 import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
+import KwitansiTemplate from "@/components/KwitansiTemplate";
+import { printReceiptElement } from "@/lib/printReceipt";
 import { useKos } from "@/context/KosContext";
 
 const getBulanOptions = () => {
@@ -41,6 +43,8 @@ export default function TagihanPage() {
     const [receiptConfig, setReceiptConfig] = useState(null);
     const [autoBillingEnabled, setAutoBillingEnabled] = useState(false);
     const [togglingAutoBilling, setTogglingAutoBilling] = useState(false);
+    const [showLunasWAModal, setShowLunasWAModal] = useState(false);
+    const [selectedLunasTagihan, setSelectedLunasTagihan] = useState(null);
     
     // States for Generate Tagihan
     const [penyewaList, setPenyewaList] = useState([]);
@@ -270,11 +274,132 @@ export default function TagihanPage() {
         setShowReceiptModal(true);
     };
 
-    const handlePrintReceipt = () => {
-        window.print();
+    const handleOpenLunasWA = (row) => {
+        setSelectedLunasTagihan(row);
+        fetchReceiptConfig(row.penyewa?.kamar?.kos?.id);
+        setShowLunasWAModal(true);
     };
 
-    const sendWhatsApp = async (tagihan) => {
+    const sendWhatsAppLunas = async (tagihan, type = "standard") => {
+        if (!tagihan) return;
+        const rawId = tagihan.id.toString();
+        const noKwitansi = `#KW-${rawId.slice(-8).toUpperCase()}`;
+        const formattedJumlah = typeof tagihan.jumlah === "number" ? tagihan.jumlah.toLocaleString("id-ID") : tagihan.jumlah;
+        const kosName = tagihan.penyewa?.kamar?.kos?.nama_kos || "SmartKos";
+        const nomorKamar = tagihan.penyewa?.kamar?.nomor || "-";
+        const namaPenyewa = tagihan.penyewa?.nama || "Penyewa";
+        const bulan = tagihan.bulan;
+        const tgl = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        let message = "";
+        if (type === "kwitansi_text") {
+            message = `*BUKTI PEMBAYARAN / KWITANSI RESMI*\n` +
+                `-----------------------------------\n` +
+                `*${receiptConfig?.nama_bisnis || kosName}*\n` +
+                `${receiptConfig?.alamat_bisnis ? receiptConfig.alamat_bisnis + '\n' : ''}` +
+                `-----------------------------------\n` +
+                `No. Kwitansi : ${noKwitansi}\n` +
+                `Tanggal     : ${tgl}\n` +
+                `Nama        : ${namaPenyewa}\n` +
+                `Unit/Kamar  : ${kosName} - Kamar ${nomorKamar}\n` +
+                `Periode     : ${bulan}\n` +
+                `Jumlah      : Rp ${formattedJumlah}\n` +
+                `Status      : *LUNAS / PAID* ✅\n` +
+                `-----------------------------------\n` +
+                `_${receiptConfig?.pesan_tambahan || "Terima kasih telah mempercayakan hunian Anda kepada kami."}_\n\n` +
+                `Dokumen kwitansi elektronik resmi SmartKos System.`;
+        } else {
+            message = `Halo ${namaPenyewa},\n\n` +
+                `Terima kasih! Pembayaran sewa kos bulan *${bulan}* untuk *Kamar ${nomorKamar} (${kosName})* sebesar *Rp ${formattedJumlah}* telah kami terima dan terkonfirmasi *LUNAS* ✅.\n\n` +
+                `Nomor Bukti Kwitansi: ${noKwitansi}\n` +
+                `Tanggal: ${tgl}\n\n` +
+                `_${receiptConfig?.pesan_tambahan || "Terima kasih telah melakukan pembayaran tepat waktu. Semoga hari Anda menyenangkan!"}_ 🙏`;
+        }
+
+        const link = generateWhatsAppLink(tagihan.penyewa.no_hp, message);
+        await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
+        window.open(link, "_blank");
+        fetchTagihan();
+    };
+
+    const sendWhatsAppLunasFonnte = async (tagihan, type = "standard") => {
+        if (!tagihan) return;
+        const kosUserId = tagihan.penyewa.kamar.kos.user_id;
+
+        const { data: userData } = await supabase
+            .from("users")
+            .select("wa_api_key")
+            .eq("id", kosUserId)
+            .single();
+
+        if (!userData || !userData.wa_api_key) {
+            alert("Token Fonnte belum diatur. Silakan atur di Pengaturan WhatsApp.");
+            return;
+        }
+
+        const rawId = tagihan.id.toString();
+        const noKwitansi = `#KW-${rawId.slice(-8).toUpperCase()}`;
+        const formattedJumlah = typeof tagihan.jumlah === "number" ? tagihan.jumlah.toLocaleString("id-ID") : tagihan.jumlah;
+        const kosName = tagihan.penyewa?.kamar?.kos?.nama_kos || "SmartKos";
+        const nomorKamar = tagihan.penyewa?.kamar?.nomor || "-";
+        const namaPenyewa = tagihan.penyewa?.nama || "Penyewa";
+        const bulan = tagihan.bulan;
+        const tgl = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        let message = "";
+        if (type === "kwitansi_text") {
+            message = `*BUKTI PEMBAYARAN / KWITANSI RESMI*\n` +
+                `-----------------------------------\n` +
+                `*${receiptConfig?.nama_bisnis || kosName}*\n` +
+                `${receiptConfig?.alamat_bisnis ? receiptConfig.alamat_bisnis + '\n' : ''}` +
+                `-----------------------------------\n` +
+                `No. Kwitansi : ${noKwitansi}\n` +
+                `Tanggal     : ${tgl}\n` +
+                `Nama        : ${namaPenyewa}\n` +
+                `Unit/Kamar  : ${kosName} - Kamar ${nomorKamar}\n` +
+                `Periode     : ${bulan}\n` +
+                `Jumlah      : Rp ${formattedJumlah}\n` +
+                `Status      : *LUNAS / PAID* ✅\n` +
+                `-----------------------------------\n` +
+                `_${receiptConfig?.pesan_tambahan || "Terima kasih telah mempercayakan hunian Anda kepada kami."}_\n\n` +
+                `Dokumen kwitansi elektronik resmi SmartKos System.`;
+        } else {
+            message = `Halo ${namaPenyewa},\n\n` +
+                `Terima kasih! Pembayaran sewa kos bulan *${bulan}* untuk *Kamar ${nomorKamar} (${kosName})* sebesar *Rp ${formattedJumlah}* telah kami terima dan terkonfirmasi *LUNAS* ✅.\n\n` +
+                `Nomor Bukti Kwitansi: ${noKwitansi}\n` +
+                `Tanggal: ${tgl}\n\n` +
+                `_${receiptConfig?.pesan_tambahan || "Terima kasih telah melakukan pembayaran tepat waktu. Semoga hari Anda menyenangkan!"}_ 🙏`;
+        }
+
+        try {
+            const response = await fetch("https://api.fonnte.com/send", {
+                method: "POST",
+                headers: {
+                    "Authorization": userData.wa_api_key,
+                },
+                body: new URLSearchParams({
+                    target: tagihan.penyewa.no_hp,
+                    message: message,
+                }),
+            });
+            const result = await response.json();
+            if (result.status) {
+                await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
+                alert("Konfirmasi lunas berhasil dikirim via Fonnte!");
+                fetchTagihan();
+            } else {
+                alert("Gagal mengirim WA via Fonnte: " + result.reason);
+            }
+        } catch (error) {
+            alert("Error sending WA via Fonnte: " + error.message);
+        }
+    };
+
+    const handlePrintReceipt = () => {
+        printReceiptElement("printable-receipt");
+    };
+
+    const sendWhatsAppWithStage = async (tagihan, stage = "normal") => {
         const data = {
             nama: tagihan.penyewa.nama,
             bulan: tagihan.bulan,
@@ -283,7 +408,16 @@ export default function TagihanPage() {
             jatuh_tempo: tagihan.penyewa.jatuh_tempo,
         };
 
-        const message = replacePlaceholders(waTemplate, data);
+        let templateText = waTemplate;
+        if (stage === "h-3") {
+            templateText = "Halo {nama}, mengingatkan bahwa tagihan sewa kos kamar {kamar} untuk bulan {bulan} sebesar Rp{jumlah} akan jatuh tempo 3 hari lagi pada tanggal {jatuh_tempo}. Terima kasih.";
+        } else if (stage === "hari-h") {
+            templateText = "Halo {nama}, hari ini tanggal {jatuh_tempo} adalah tanggal jatuh tempo pembayaran sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah}. Mohon segera dikonfirmasi. Terima kasih.";
+        } else if (stage === "overdue") {
+            templateText = "Halo {nama}, tagihan sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah} telah lewat dari tanggal jatuh tempo ({jatuh_tempo}). Mohon segera diselesaikan. Terima kasih.";
+        }
+
+        const message = replacePlaceholders(templateText, data);
         const link = generateWhatsAppLink(tagihan.penyewa.no_hp, message);
 
         await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
@@ -291,7 +425,9 @@ export default function TagihanPage() {
         fetchTagihan();
     };
 
-    const sendWhatsAppFonnte = async (tagihan) => {
+    const sendWhatsApp = (tagihan) => sendWhatsAppWithStage(tagihan, "normal");
+
+    const sendWhatsAppFonnte = async (tagihan, stage = "normal") => {
         const kosUserId = tagihan.penyewa.kamar.kos.user_id;
 
         const { data: userData } = await supabase
@@ -312,7 +448,17 @@ export default function TagihanPage() {
             kamar: tagihan.penyewa.kamar.nomor,
             jatuh_tempo: tagihan.penyewa.jatuh_tempo,
         };
-        const message = replacePlaceholders(waTemplate, data);
+
+        let templateText = waTemplate;
+        if (stage === "h-3") {
+            templateText = "Halo {nama}, mengingatkan bahwa tagihan sewa kos kamar {kamar} untuk bulan {bulan} sebesar Rp{jumlah} akan jatuh tempo 3 hari lagi pada tanggal {jatuh_tempo}. Terima kasih.";
+        } else if (stage === "hari-h") {
+            templateText = "Halo {nama}, hari ini tanggal {jatuh_tempo} adalah tanggal jatuh tempo pembayaran sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah}. Mohon segera dikonfirmasi. Terima kasih.";
+        } else if (stage === "overdue") {
+            templateText = "Halo {nama}, tagihan sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah} telah lewat dari tanggal jatuh tempo ({jatuh_tempo}). Mohon segera diselesaikan. Terima kasih.";
+        }
+
+        const message = replacePlaceholders(templateText, data);
 
         try {
             const formData = new FormData();
@@ -494,15 +640,25 @@ export default function TagihanPage() {
                         <select
                             value={selectedBulan}
                             onChange={(e) => setSelectedBulan(e.target.value)}
-                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all md:w-40"
+                            className="px-4 py-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all md:w-44"
                         >
                             <option value="">Pilih Bulan</option>
                             {BULAN_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
                         </select>
                         <button
+                            type="button"
+                            onClick={() => {
+                                const currentMonthStr = `${MONTHS[new Date().getMonth()]} ${new Date().getFullYear()}`;
+                                setSelectedBulan(currentMonthStr);
+                            }}
+                            className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-semibold border border-slate-700 transition-all whitespace-nowrap"
+                        >
+                            ⚡ Bulan Ini
+                        </button>
+                        <button
                             onClick={handleGenerate}
                             disabled={generating}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+                            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
                         >
                             {generating ? (
                                 <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -546,15 +702,26 @@ export default function TagihanPage() {
                                 </>
                             )}
                             {row.status === "lunas" && (
-                                <button
-                                    onClick={() => handleShowReceipt(row)}
-                                    className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all"
-                                    title="Unduh Kwitansi"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                    </svg>
-                                </button>
+                                <>
+                                    <button
+                                        onClick={() => handleShowReceipt(row)}
+                                        className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                                        title="Lihat / Cetak Kwitansi"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleOpenLunasWA(row)}
+                                        className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                                        title="Kirim Konfirmasi WA Lunas"
+                                    >
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                                        </svg>
+                                    </button>
+                                </>
                             )}
                         </div>
                     )}
@@ -601,21 +768,48 @@ export default function TagihanPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex gap-2 w-full mt-4">
-                            <button
-                                onClick={() => sendWhatsAppFonnte(selectedTagihan)}
-                                className="flex-1 py-4 rounded-2xl bg-[#25D366] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#20b858] transition-all"
-                            >
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
-                                Kirim Otomatis (Fonnte)
-                            </button>
-                            <button
-                                onClick={() => sendWhatsApp(selectedTagihan)}
-                                className="flex-1 py-4 rounded-2xl bg-[#25D366]/10 text-[#25D366] font-bold flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/20"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                Buka via WA.me
-                            </button>
+                        <div className="space-y-2.5 mt-4">
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Kirim Pengingat Tagihan (WhatsApp)</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, "h-3")}
+                                    className="py-2.5 px-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/25 transition-all text-center"
+                                    title="Kirim pengingat H-3 sebelum jatuh tempo"
+                                >
+                                    🔔 Pengingat H-3
+                                </button>
+                                <button
+                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, "hari-h")}
+                                    className="py-2.5 px-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/25 transition-all text-center"
+                                    title="Kirim pengingat hari-H jatuh tempo"
+                                >
+                                    📢 Pengingat Hari-H
+                                </button>
+                                <button
+                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, "overdue")}
+                                    className="py-2.5 px-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold hover:bg-rose-500/25 transition-all text-center"
+                                    title="Kirim teguran tagihan menunggak"
+                                >
+                                    ⚠️ Menunggak
+                                </button>
+                            </div>
+
+                            <div className="flex gap-2 w-full pt-2">
+                                <button
+                                    onClick={() => sendWhatsAppFonnte(selectedTagihan)}
+                                    className="flex-1 py-3 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#20b858] transition-all shadow-md"
+                                >
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                                    Kirim Otomatis (Fonnte)
+                                </button>
+                                <button
+                                    onClick={() => sendWhatsApp(selectedTagihan)}
+                                    className="flex-1 py-3 rounded-xl bg-[#25D366]/10 text-[#25D366] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/20"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                    Buka WA.me
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -628,152 +822,139 @@ export default function TagihanPage() {
                 title="Kwitansi Pembayaran"
                 size="md"
                 footer={(
-                    <>
-                        <button onClick={() => setShowReceiptModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white transition-all">
-                            Tutup
-                        </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3 w-full">
                         <button
-                            onClick={handlePrintReceipt}
-                            className="px-6 py-2.5 rounded-xl bg-indigo-500 text-white font-bold hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                            onClick={() => sendWhatsAppLunas(selectedReceipt, "standard")}
+                            className="px-4 py-2.5 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center gap-2 hover:bg-[#20b858] transition-all shadow-md"
+                            title="Kirim kata-kata konfirmasi lunas via WhatsApp"
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                            </svg>
-                            Cetak Kwitansi
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                            Kirim WA Konfirmasi
                         </button>
-                    </>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setShowReceiptModal(false)} className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white transition-all text-xs font-semibold">
+                                Tutup
+                            </button>
+                            <button
+                                onClick={handlePrintReceipt}
+                                className="px-5 py-2.5 rounded-xl bg-indigo-500 text-white font-bold text-xs hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Cetak Kwitansi
+                            </button>
+                        </div>
+                    </div>
                 )}
             >
                 {selectedReceipt && (
+                    <div className="py-2">
+                        <KwitansiTemplate
+                            config={receiptConfig}
+                            data={selectedReceipt}
+                        />
+                    </div>
+                )}
+            </Modal>
+
+            {/* Lunas WhatsApp Confirmation Choice Modal */}
+            <Modal
+                isOpen={showLunasWAModal}
+                onClose={() => setShowLunasWAModal(false)}
+                title="Kirim Konfirmasi WA Pembayaran Lunas"
+                size="md"
+                footer={(
+                    <button onClick={() => setShowLunasWAModal(false)} className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white transition-all text-xs font-semibold">
+                        Tutup
+                    </button>
+                )}
+            >
+                {selectedLunasTagihan && (
                     <div className="space-y-6">
-                        {/* On-screen Preview */}
-                        <div id="receipt-content" className="receipt-box bg-white text-slate-900 rounded-3xl p-8 shadow-inner font-serif relative overflow-hidden border border-slate-200">
-                            {/* Watermark */}
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] -rotate-45 font-black text-6xl pointer-events-none select-none tracking-widest">
-                                SMARTKOS
+                        <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 text-xs space-y-2">
+                            <div className="flex justify-between text-slate-300">
+                                <span>Penyewa:</span>
+                                <span className="font-bold text-white">{selectedLunasTagihan.penyewa?.nama}</span>
                             </div>
-
-                            <div className="relative z-10">
-                                {/* Header */}
-                                <div className="text-center border-b-2 border-slate-900/10 pb-6 mb-8">
-                                    <h2 className="text-2xl font-black uppercase tracking-tighter mb-1 text-slate-900">
-                                        {receiptConfig?.nama_bisnis || selectedReceipt.penyewa?.kamar?.kos?.nama_kos || "BUKTI PEMBAYARAN"}
-                                    </h2>
-                                    {receiptConfig?.alamat_bisnis && (
-                                        <p className="text-[10px] leading-relaxed opacity-70 italic max-w-xs mx-auto mb-1">
-                                            {receiptConfig.alamat_bisnis}
-                                        </p>
-                                    )}
-                                    <p className="text-[10px] font-bold tracking-widest text-indigo-600 uppercase">
-                                        {receiptConfig?.kontak_bisnis || "KONTAK: -"}
-                                    </p>
-                                </div>
-
-                                {/* Body */}
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-end border-b border-slate-900/5 pb-4">
-                                        <div>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Nomor Kwitansi</p>
-                                            <h3 className="text-base font-black font-mono">#{selectedReceipt.id.toString().slice(-8).toUpperCase()}</h3>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggal</p>
-                                            <p className="text-xs font-bold italic">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 py-2">
-                                        <div className="flex justify-between items-center text-sm border-b border-slate-50 border-dotted pb-2">
-                                            <span className="text-slate-500 italic">Sudah Terima Dari</span>
-                                            <span className="font-black text-slate-900">{selectedReceipt.penyewa?.nama}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm border-b border-slate-50 border-dotted pb-2">
-                                            <span className="text-slate-500 italic">Properti / Kamar</span>
-                                            <span className="font-black text-slate-900">{selectedReceipt.penyewa?.kamar?.kos?.nama_kos} - Kamar {selectedReceipt.penyewa?.kamar?.nomor}</span>
-                                        </div>
-                                        <div className="flex justify-between items-start text-sm border-b border-slate-50 border-dotted pb-2">
-                                            <span className="text-slate-500 italic">Untuk Pembayaran</span>
-                                            <span className="font-black text-slate-900 text-right max-w-[180px]">Sewa Kamar Periode {selectedReceipt.bulan}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Total Container */}
-                                    <div className="bg-slate-50 rounded-2xl p-5 flex justify-between items-center border border-slate-100 mt-8">
-                                        <span className="font-black uppercase tracking-widest text-xs text-slate-400">Total Nominal</span>
-                                        <span className="text-2xl font-black text-slate-900">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
-                                    </div>
-                                </div>
-
-                                {/* Footer / Signature */}
-                                <div className="mt-12 text-center relative">
-                                    <p className="text-[10px] italic text-slate-500 px-8 leading-relaxed mb-8">
-                                        "{receiptConfig?.pesan_tambahan || "Terima kasih telah mempercayakan hunian Anda kepada kami."}"
-                                    </p>
-
-                                    <div className="flex justify-end pr-8">
-                                        <div className="text-center">
-                                            <div className="w-32 border-b-2 border-slate-900 mb-2 mt-4"></div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest">Pengelola Kos</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Stamp/Paid Indicator */}
-                                    <div className="absolute left-4 bottom-2 inline-block px-4 py-1.5 border-4 border-emerald-500/30 text-emerald-500 text-[10px] font-black rounded-lg rotate-[-15deg] uppercase tracking-widest">
-                                        Lunas / Paid
-                                    </div>
-                                </div>
+                            <div className="flex justify-between text-slate-300">
+                                <span>Kamar:</span>
+                                <span className="font-bold text-white">{selectedLunasTagihan.penyewa?.kamar?.kos?.nama_kos} — Kamar {selectedLunasTagihan.penyewa?.kamar?.nomor}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-300">
+                                <span>Periode Tagihan:</span>
+                                <span className="font-semibold text-indigo-300">{selectedLunasTagihan.bulan}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-300">
+                                <span>Total Nominal:</span>
+                                <span className="font-black text-emerald-400">Rp {typeof selectedLunasTagihan.jumlah === "number" ? selectedLunasTagihan.jumlah.toLocaleString("id-ID") : selectedLunasTagihan.jumlah}</span>
                             </div>
                         </div>
 
-                        {/* Print Only Version (Professional High-Res) */}
-                        <div className="print-only">
-                            <div className="p-16 bg-white min-h-[500px] text-slate-950 font-serif">
-                                <div className="flex justify-between items-start border-b-[3px] border-slate-950 pb-6 mb-10">
-                                    <div>
-                                        <h2 className="text-4xl font-black uppercase italic tracking-tighter mb-2">
-                                            {receiptConfig?.nama_bisnis || selectedReceipt.penyewa?.kamar?.kos?.nama_kos}
-                                        </h2>
-                                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 mb-1">{receiptConfig?.alamat_bisnis}</p>
-                                        <p className="text-xs font-black text-indigo-700">{receiptConfig?.kontak_bisnis}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <h3 className="text-2xl font-black uppercase tracking-widest mb-2">Bukti Bayar</h3>
-                                        <p className="text-sm font-mono text-slate-400">NO: {selectedReceipt.id.toString().slice(-12).toUpperCase()}</p>
-                                    </div>
-                                </div>
+                        <div className="space-y-3">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pilih Opsi Pesan WhatsApp:</p>
 
-                                <div className="space-y-10 text-2xl py-8">
-                                    <div className="flex items-end gap-6">
-                                        <span className="text-sm font-black uppercase italic text-slate-400 min-w-[150px]">Diterima Dari</span>
-                                        <span className="border-b-2 border-slate-950 flex-1 px-4 text-4xl font-bold uppercase pb-2">{selectedReceipt.penyewa?.nama}</span>
-                                    </div>
-                                    <div className="flex items-end gap-6">
-                                        <span className="text-sm font-black uppercase italic text-slate-400 min-w-[150px]">Sejumlah Uang</span>
-                                        <span className="border-b-2 border-slate-950 flex-1 px-4 text-4xl font-black italic pb-2">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
-                                    </div>
-                                    <div className="flex items-end gap-6">
-                                        <span className="text-sm font-black uppercase italic text-slate-400 min-w-[150px]">Keterangan</span>
-                                        <span className="border-b-2 border-slate-950 flex-1 px-4 text-2xl font-bold pb-2">PEMBAYARAN SEWA KAMAR {selectedReceipt.penyewa?.kamar?.nomor} - {selectedReceipt.bulan.toUpperCase()}</span>
-                                    </div>
+                            {/* Option 1: Standard Words Confirmation */}
+                            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/15 transition-all space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                                    <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wide">1. Kata-kata Konfirmasi Pembayaran</h4>
                                 </div>
-
-                                <div className="mt-20 flex justify-between items-center">
-                                    <div className="bg-slate-950 text-white px-10 py-6 rounded-2xl italic font-black text-5xl skew-x-[-10deg] shadow-2xl">
-                                        <span className="inline-block skew-x-[10deg]">Rp {formatRupiah(selectedReceipt.jumlah)}</span>
-                                    </div>
-                                    <div className="text-center min-w-[250px]">
-                                        <p className="mb-24 font-bold text-lg text-slate-600 italic">
-                                            {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                        </p>
-                                        <div className="w-full border-b-[3px] border-slate-950 mb-3"></div>
-                                        <p className="font-black uppercase tracking-widest text-sm">Authorized Signature</p>
-                                    </div>
+                                <p className="text-xs text-slate-300 italic leading-relaxed">
+                                    "Halo {selectedLunasTagihan.penyewa?.nama}, terima kasih! Pembayaran sewa kos bulan {selectedLunasTagihan.bulan} sebesar Rp {typeof selectedLunasTagihan.jumlah === "number" ? selectedLunasTagihan.jumlah.toLocaleString("id-ID") : selectedLunasTagihan.jumlah} telah kami terima dan terkonfirmasi LUNAS ✅..."
+                                </p>
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        onClick={() => {
+                                            sendWhatsAppLunas(selectedLunasTagihan, "standard");
+                                            setShowLunasWAModal(false);
+                                        }}
+                                        className="flex-1 py-2.5 px-3 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-[#20b858] transition-all shadow-md"
+                                    >
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                                        Buka WA.me
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            sendWhatsAppLunasFonnte(selectedLunasTagihan, "standard");
+                                            setShowLunasWAModal(false);
+                                        }}
+                                        className="py-2.5 px-3 rounded-xl bg-slate-800 text-emerald-400 border border-emerald-500/30 font-bold text-xs hover:bg-slate-700 transition-all"
+                                    >
+                                        Fonnte Otomatis
+                                    </button>
                                 </div>
+                            </div>
 
-                                <div className="mt-16 text-center border-t border-slate-100 pt-8">
-                                    <p className="text-sm italic opacity-40">
-                                        "{receiptConfig?.pesan_tambahan || "Terima kasih atas pembayaran Anda. Simpan bukti ini sebagai referensi resmi."}"
-                                    </p>
+                            {/* Option 2: Full Kwitansi Text Breakdown */}
+                            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/15 transition-all space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
+                                    <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wide">2. Rincian Kwitansi Resmi (Teks WA)</h4>
+                                </div>
+                                <p className="text-xs text-slate-300 italic leading-relaxed">
+                                    Kirim format kwitansi resmi lengkap (No. Kwitansi, Tanggal, Nama Penyewa, Kamar, Periode, Nominal, Status LUNAS) dalam bentuk teks terstruktur via WhatsApp.
+                                </p>
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        onClick={() => {
+                                            sendWhatsAppLunas(selectedLunasTagihan, "kwitansi_text");
+                                            setShowLunasWAModal(false);
+                                        }}
+                                        className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-indigo-500 transition-all shadow-md"
+                                    >
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                                        Kirim Kwitansi Teks
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            sendWhatsAppLunasFonnte(selectedLunasTagihan, "kwitansi_text");
+                                            setShowLunasWAModal(false);
+                                        }}
+                                        className="py-2.5 px-3 rounded-xl bg-slate-800 text-indigo-300 border border-indigo-500/30 font-bold text-xs hover:bg-slate-700 transition-all"
+                                    >
+                                        Fonnte Otomatis
+                                    </button>
                                 </div>
                             </div>
                         </div>

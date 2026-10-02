@@ -74,31 +74,41 @@ export default function PenyewaPage() {
             return;
         }
 
-        const newStatus = count === 0 ? "Kosong" : `${count} Orang`;
+        // Set status to 'isi' if tenants exist, otherwise 'kosong'
+        const newStatus = count > 0 ? "isi" : "kosong";
         await supabase.from("kamar").update({ status: newStatus }).eq("id", kamarId);
     };
 
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
-        const payload = { ...form, jatuh_tempo: parseInt(form.jatuh_tempo) };
+        if (!form.kamar_id) {
+            alert("Pilih kamar terlebih dahulu!");
+            return;
+        }
+        const payload = { ...form, jatuh_tempo: parseInt(form.jatuh_tempo) || 1 };
         setSubmitLoading(true);
 
-        if (editItem) {
-            await supabase.from("penyewa").update(payload).eq("id", editItem.id);
-            if (editItem.kamar_id !== payload.kamar_id) {
-                await updateKamarStatus(editItem.kamar_id);
-                await updateKamarStatus(payload.kamar_id);
+        try {
+            if (editItem) {
+                await supabase.from("penyewa").update(payload).eq("id", editItem.id);
+                if (editItem.kamar_id !== payload.kamar_id) {
+                    await updateKamarStatus(editItem.kamar_id);
+                    await updateKamarStatus(payload.kamar_id);
+                } else {
+                    await updateKamarStatus(payload.kamar_id);
+                }
             } else {
+                await supabase.from("penyewa").insert(payload);
                 await updateKamarStatus(payload.kamar_id);
             }
-        } else {
-            await supabase.from("penyewa").insert(payload);
-            await updateKamarStatus(payload.kamar_id);
-        }
 
-        setSubmitLoading(false);
-        closeModal();
-        await fetchData();
+            closeModal();
+            await fetchData();
+        } catch (error) {
+            alert("Gagal menyimpan data penyewa: " + error.message);
+        } finally {
+            setSubmitLoading(false);
+        }
     };
 
     const handleDelete = (item) => {
@@ -106,14 +116,19 @@ export default function PenyewaPage() {
             isOpen: true,
             type: "danger",
             title: "Hapus Penyewa",
-            message: `Apakah Anda yakin ingin menghapus penyewa "${item.nama}"? Data tagihan dan riwayat pembayaran terkait mungkin akan terpengaruh.`,
+            message: `Apakah Anda yakin ingin menghapus penyewa "${item.nama}"? Kamar terkait akan otomatis diupdate kembali ke status Kosong jika tidak ada penyewa lain.`,
             confirmText: "Hapus Penyewa",
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, loading: true }));
-                await supabase.from("penyewa").delete().eq("id", item.id);
-                await updateKamarStatus(item.kamar_id);
-                await fetchData();
-                setConfirmModal(prev => ({ ...prev, isOpen: false, loading: false }));
+                try {
+                    await supabase.from("penyewa").delete().eq("id", item.id);
+                    await updateKamarStatus(item.kamar_id);
+                    await fetchData();
+                } catch (err) {
+                    alert("Gagal menghapus penyewa: " + err.message);
+                } finally {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, loading: false }));
+                }
             }
         });
     };
@@ -144,7 +159,7 @@ export default function PenyewaPage() {
             label: "Kamar",
             render: (val) => (
                 <span className="text-slate-300">
-                    {val?.kos?.nama_kos} - {val?.nomor}
+                    {val?.kos?.nama_kos} - Kamar {val?.nomor}
                 </span>
             ),
         },
@@ -165,7 +180,7 @@ export default function PenyewaPage() {
     ];
 
     return (
-        <div>
+        <div className="pb-24 lg:pb-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1">Kelola Penyewa</h1>
@@ -190,7 +205,7 @@ export default function PenyewaPage() {
                     </svg>
                 </div>
             ) : (
-                <DataTable columns={columns} data={penyewaList} emptyMessage="Belum ada penyewa." actions={(row) => (
+                <DataTable columns={columns} data={penyewaList} emptyMessage="Belum ada penyewa terdaftar." actions={(row) => (
                     <div className="flex gap-2">
                         <button onClick={() => openEdit(row)} className="p-2 rounded-xl text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -218,14 +233,14 @@ export default function PenyewaPage() {
                     </>
                 )}
             >
-                <form className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Pilih Kamar</label>
                         <select value={form.kamar_id} onChange={(e) => setForm({ ...form, kamar_id: e.target.value })} required className="w-full px-4 py-3 rounded-xl bg-[#0f172a] border border-[#334155] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                             <option value="">Pilih Kamar</option>
                             {kamarList.map((k) => (
                                 <option key={k.id} value={k.id}>
-                                    {k.kos?.nama_kos} - Kamar {k.nomor} ({k.status})
+                                    {k.kos?.nama_kos} - Kamar {k.nomor} ({k.status === 'isi' || k.status === 'Isi' ? '🔴 Isi' : '🟢 Kosong'})
                                 </option>
                             ))}
                         </select>

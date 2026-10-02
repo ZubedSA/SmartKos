@@ -101,14 +101,14 @@ export default function LandingPage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
                     Trial Gratis Selama 30 Hari
                 </div>
-                
+
                 <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-white mb-6 leading-[1.1] max-w-4xl mx-auto">
                     Kelola Rumah Kos Jadi <br className="hidden md:inline" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
                         Mudah & Otomatis
                     </span>
                 </h1>
-                
+
                 <p className="text-slate-400 text-sm sm:text-base lg:text-lg max-w-2xl mx-auto leading-relaxed mb-10">
                     Solusi terpadu asisten bisnis kos Anda. Atur bangunan & kamar, catat penyewa aktif, hitung kas masuk-keluar harian, hingga penagihan sewa otomatis langsung ke WhatsApp penyewa.
                 </p>
@@ -132,7 +132,7 @@ export default function LandingPage() {
                 {/* Dashboard App Preview Showcase (Mockup) */}
                 <div className="max-w-5xl mx-auto rounded-3xl p-3 bg-slate-800/40 border border-slate-700/60 shadow-2xl relative overflow-hidden backdrop-blur-sm">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent z-10" />
-                    
+
                     {/* Mockup Header Bar */}
                     <div className="flex items-center gap-1.5 px-4 py-3 bg-[#0f172a]/60 border-b border-slate-800 rounded-t-2xl">
                         <div className="w-3 h-3 rounded-full bg-rose-500/80" />
@@ -140,7 +140,7 @@ export default function LandingPage() {
                         <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
                         <span className="text-[10px] font-mono text-slate-500 ml-4">https://smartkos.com/dashboard</span>
                     </div>
-                    
+
                     {/* Simulated Content Grid */}
                     <div className="bg-[#0f172a] p-6 lg:p-8 rounded-b-2xl grid grid-cols-1 md:grid-cols-3 gap-6 text-left min-h-[300px] pointer-events-none">
                         {/* Stats card mock */}
@@ -248,7 +248,7 @@ export default function LandingPage() {
                         <div>
                             <h3 className="text-white font-bold text-lg mb-2">Paket Bulanan</h3>
                             <p className="text-slate-400 text-xs mb-6">Cocok untuk mencoba seluruh fitur.</p>
-                            <h4 className="text-white text-3xl font-black mb-1">Rp 50.000<span className="text-slate-500 text-sm font-semibold">/ bln</span></h4>
+                            <h4 className="text-white text-3xl font-black mb-1">Rp 39.000<span className="text-slate-500 text-sm font-semibold">/ bln</span></h4>
                         </div>
                         <Link href="/register" className="w-full text-center py-3 bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold uppercase rounded-xl transition-colors mt-8">
                             Mulai Trial Gratis
@@ -261,8 +261,8 @@ export default function LandingPage() {
                         <div>
                             <h3 className="text-white font-bold text-lg mb-2">Paket Tahunan</h3>
                             <p className="text-slate-400 text-xs mb-6">Investasi hemat ketenangan kelola kos.</p>
-                            <h4 className="text-white text-3xl font-black mb-1">Rp 480.000<span className="text-slate-500 text-sm font-semibold">/ thn</span></h4>
-                            <span className="text-[10px] font-bold text-indigo-300">Setara Rp 40.000 / bulan</span>
+                            <h4 className="text-white text-3xl font-black mb-1">Rp 400.000<span className="text-slate-500 text-sm font-semibold">/ thn</span></h4>
+                            <span className="text-[10px] font-bold text-indigo-300">Setara Rp 33.333 / bulan</span>
                         </div>
                         <Link href="/register" className="w-full text-center py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-bold uppercase rounded-xl transition-all shadow-md mt-8">
                             Daftar Sekarang
@@ -274,7 +274,7 @@ export default function LandingPage() {
                         <div>
                             <h3 className="text-white font-bold text-lg mb-2">Paket Semesteran</h3>
                             <p className="text-slate-400 text-xs mb-6">Solusi hemat jangka menengah.</p>
-                            <h4 className="text-white text-3xl font-black mb-1">Rp 270.000<span className="text-slate-500 text-sm font-semibold">/ 6 bln</span></h4>
+                            <h4 className="text-white text-3xl font-black mb-1">Rp 220.000<span className="text-slate-500 text-sm font-semibold">/ 6 bln</span></h4>
                         </div>
                         <Link href="/register" className="w-full text-center py-3 bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold uppercase rounded-xl transition-colors mt-8">
                             Mulai Trial Gratis
@@ -346,7 +346,7 @@ export default function LandingPage() {
                 <div className="bg-gradient-to-br from-[#1e1b4b] via-[#2e1065] to-[#1e1b4b] rounded-3xl p-8 lg:p-12 border border-[#3b0764]/40 text-center shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
                     <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-                    
+
                     <div className="relative z-10">
                         <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-4">Siap Mengelola Kos Secara Digital?</h2>
                         <p className="text-slate-300 text-sm max-w-xl mx-auto mb-8 leading-relaxed">

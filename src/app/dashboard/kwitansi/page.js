@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import { useKos } from "@/context/KosContext";
-import { formatRupiah } from "@/lib/whatsapp";
+import KwitansiTemplate from "@/components/KwitansiTemplate";
+import { printReceiptElement } from "@/lib/printReceipt";
 
 const SAMPLE_DATA = {
-    no_kwitansi: "KW-202402001",
+    no_kwitansi: "KW-202610001",
     nama_penyewa: "Andi Saputra",
     nomor_kamar: "B-05",
-    nominal: 850000,
-    keterangan: "Pembayaran Sewa Kamar - Februari 2024",
+    jumlah: 850000,
+    bulan: "Oktober 2026",
     tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 };
 
@@ -220,71 +221,27 @@ export default function KwitansiConfigPage() {
                 {/* Preview Section */}
                 <div>
                     <div className="sticky top-8">
-                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4 ml-6 italic">Live Preview Cetak</p>
-
-                        <div className="bg-white rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
-                            {/* Paper Texture Effect */}
-                            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/paper.png')]"></div>
-
-                            {/* Receipt Content */}
-                            <div className="relative z-10 text-slate-900 font-serif">
-                                <div className="text-center border-b-2 border-slate-900/10 pb-6 mb-8">
-                                    <h2 className="text-xl font-black uppercase tracking-tighter mb-1">{formData.nama_bisnis || "NAMA KOS ANDA"}</h2>
-                                    <p className="text-[10px] leading-relaxed opacity-70 italic max-w-xs mx-auto">
-                                        {formData.alamat_bisnis || "Alamat lengkap properti akan tampil di sini..."}
-                                    </p>
-                                    <p className="text-[10px] font-bold mt-1">{formData.kontak_bisnis || "Telp: -"}</p>
-                                </div>
-
-                                <div className="mb-8">
-                                    <div className="flex justify-between items-end mb-6">
-                                        <div>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Bukti Pembayaran</p>
-                                            <h3 className="text-lg font-black">{SAMPLE_DATA.no_kwitansi}</h3>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] italic">{SAMPLE_DATA.tanggal}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 border-y border-slate-900/5 py-6">
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="opacity-50">Nama Penyewa</span>
-                                            <span className="font-bold">{SAMPLE_DATA.nama_penyewa}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="opacity-50">Nomor Kamar</span>
-                                            <span className="font-bold">{SAMPLE_DATA.nomor_kamar}</span>
-                                        </div>
-                                        <div className="flex justify-between items-start text-xs">
-                                            <span className="opacity-50">Keterangan</span>
-                                            <span className="font-bold text-right max-w-[150px]">{SAMPLE_DATA.keterangan}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-8 pt-6 flex justify-between items-center border-t-2 border-slate-900 text-lg">
-                                        <span className="font-black uppercase tracking-tight">Total</span>
-                                        <span className="font-black">Rp {formatRupiah(SAMPLE_DATA.nominal)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="text-center mt-12">
-                                    <p className="text-[10px] italic opacity-60 px-4">
-                                        "{formData.pesan_tambahan || "Terima kasih telah melakukan pembayaran tepat waktu."}"
-                                    </p>
-                                    <div className="mt-8 pt-8 border-t border-slate-900/5">
-                                        <div className="inline-block px-4 py-2 border-2 border-emerald-500 text-emerald-500 font-black text-[10px] rounded-lg rotate-[-12deg] opacity-40">
-                                            LUNAS / PAID
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Decorative Watermark */}
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] -rotate-45 font-black text-[6rem] pointer-events-none select-none">
-                                SMARTKOS
-                            </div>
+                        <div className="flex items-center justify-between mb-3 px-2">
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider italic flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                                Live Preview Kwitansi
+                            </p>
+                            <button
+                                onClick={() => printReceiptElement("printable-receipt")}
+                                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-700 shadow-md"
+                                title="Cetak preview kwitansi ke PDF / Printer"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Cetak Test
+                            </button>
                         </div>
+                        <KwitansiTemplate
+                            config={formData}
+                            data={SAMPLE_DATA}
+                            id="printable-receipt"
+                        />
                     </div>
                 </div>
             </div>

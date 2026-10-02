@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import DataTable from "@/components/DataTable";
 import { formatRupiah } from "@/lib/whatsapp";
+import { useKos } from "@/context/KosContext";
 
 const MONTHS = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -13,6 +14,7 @@ const MONTHS = [
 const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
 export default function LaporanPage() {
+    const { selectedKosId } = useKos();
     const [loading, setLoading] = useState(true);
     const [incomeData, setIncomeData] = useState([]);
     const [expenseData, setExpenseData] = useState([]);
@@ -23,17 +25,22 @@ export default function LaporanPage() {
 
     useEffect(() => {
         fetchData();
-    }, [selectedMonth, selectedYear]);
+    }, [selectedKosId, selectedMonth, selectedYear]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
             // Fetch income (lunas tagihan)
-            const { data: income, error: incomeError } = await supabase
+            let incomeQuery = supabase
                 .from("tagihan")
-                .select("id, bulan, jumlah, status, created_at, penyewa(nama)")
+                .select("id, bulan, jumlah, status, created_at, penyewa!inner(nama, kamar!inner(kos_id, kos(nama_kos)))")
                 .eq("status", "lunas");
 
+            if (selectedKosId !== "all") {
+                incomeQuery = incomeQuery.eq("penyewa.kamar.kos_id", selectedKosId);
+            }
+
+            const { data: income, error: incomeError } = await incomeQuery;
             if (incomeError) throw incomeError;
 
             let filteredIncome = income || [];
@@ -61,7 +68,11 @@ export default function LaporanPage() {
             // Fetch expenses (operasional)
             let expenseQuery = supabase
                 .from("operasional")
-                .select("id, keterangan, jumlah, tanggal, kategori");
+                .select("id, keterangan, jumlah, tanggal, kategori, kos_id");
+
+            if (selectedKosId !== "all") {
+                expenseQuery = expenseQuery.eq("kos_id", selectedKosId);
+            }
 
             if (selectedYear !== "all" && selectedMonth !== "all") {
                 const startDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1).toISOString().split("T")[0];
@@ -114,6 +125,34 @@ export default function LaporanPage() {
         }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    // Export to CSV Function
+    const handleExportCSV = () => {
+        if (combinedHistory.length === 0) {
+            alert("Tidak ada data transaksi untuk diekspor.");
+            return;
+        }
+
+        const headers = ["ID", "Tanggal", "Tipe", "Kategori", "Keterangan", "Nominal (Rp)"];
+        const rows = combinedHistory.map((item) => [
+            item.id,
+            new Date(item.date).toLocaleDateString("id-ID"),
+            item.type === "income" ? "Pemasukan" : "Pengeluaran",
+            item.category,
+            `"${item.title.replace(/"/g, '""')}"`,
+            item.amount
+        ]);
+
+        const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Laporan_Keuangan_SmartKos_${new Date().toISOString().split("T")[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const columns = [
         {
             key: "title",
@@ -145,26 +184,39 @@ export default function LaporanPage() {
         <div className="pb-24 lg:pb-0">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Laporan Rekapitulasi</h1>
-                    <p className="text-slate-400 text-sm">Analisis arus kas masuk dan keluar kos Anda.</p>
+                    <h1 className="text-2xl font-bold text-white mb-1">Laporan Rekapitulasi Keuangan</h1>
+                    <p className="text-slate-400 text-sm">Analisis arus kas masuk dan pengeluaran operasional kos Anda.</p>
                 </div>
-                <div className="flex gap-2 bg-[#1e293b] p-1 rounded-2xl border border-slate-700 w-full md:w-auto">
-                    <select
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="bg-transparent text-white text-sm font-medium px-4 py-2 focus:outline-none cursor-pointer"
+
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                    <div className="flex gap-2 bg-[#1e293b] p-1 rounded-2xl border border-slate-700">
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="bg-transparent text-white text-sm font-medium px-3 py-1.5 focus:outline-none cursor-pointer"
+                        >
+                            <option value="all" className="bg-[#1e293b]">Semua Bulan</option>
+                            {MONTHS.map((m, i) => <option key={m} value={i} className="bg-[#1e293b]">{m}</option>)}
+                        </select>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            className="bg-transparent text-white text-sm font-medium px-3 py-1.5 focus:outline-none cursor-pointer"
+                        >
+                            <option value="all" className="bg-[#1e293b]">Semua Tahun</option>
+                            {YEARS.map(y => <option key={y} value={y} className="bg-[#1e293b]">{y}</option>)}
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={handleExportCSV}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
                     >
-                        <option value="all" className="bg-[#1e293b]">Semua Bulan</option>
-                        {MONTHS.map((m, i) => <option key={m} value={i} className="bg-[#1e293b]">{m}</option>)}
-                    </select>
-                    <select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(e.target.value)}
-                        className="bg-transparent text-white text-sm font-medium px-4 py-2 focus:outline-none cursor-pointer"
-                    >
-                        <option value="all" className="bg-[#1e293b]">Semua Tahun</option>
-                        {YEARS.map(y => <option key={y} value={y} className="bg-[#1e293b]">{y}</option>)}
-                    </select>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Ekspor CSV
+                    </button>
                 </div>
             </div>
 
@@ -185,7 +237,7 @@ export default function LaporanPage() {
                     <h3 className="text-2xl font-black text-white">Rp {formatRupiah(totalExpense)}</h3>
                 </div>
                 <div className={`bg-gradient-to-br ${netBalance >= 0 ? 'from-indigo-600 to-purple-600' : 'from-rose-600 to-red-600'} rounded-2xl p-6 shadow-2xl relative overflow-hidden group`}>
-                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-2">Saldo Neto</p>
+                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-2">Saldo Neto (Laba Bersih)</p>
                     <h3 className="text-2xl font-black text-white">Rp {formatRupiah(netBalance)}</h3>
                     <div className="mt-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black text-white uppercase italic">
                         {netBalance >= 0 ? 'Surplus' : 'Defisit'}
@@ -195,9 +247,9 @@ export default function LaporanPage() {
 
             <div className="bg-[#1e293b] border border-slate-700 rounded-3xl overflow-hidden shadow-2xl transition-all">
                 <div className="p-6 border-b border-slate-700/50 flex justify-between items-center">
-                    <h2 className="text-sm font-black text-white uppercase tracking-widest italic">Riwayat Transaksi</h2>
+                    <h2 className="text-sm font-black text-white uppercase tracking-widest italic">Riwayat Transaksi Masuk & Keluar</h2>
                     <span className="px-3 py-1 bg-slate-800 rounded-full text-[10px] text-slate-400 font-bold uppercase">
-                        {combinedHistory.length} Record
+                        {combinedHistory.length} Transaksi
                     </span>
                 </div>
                 {loading ? (
