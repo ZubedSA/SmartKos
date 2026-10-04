@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import { formatRupiah, replacePlaceholders, generateWhatsAppLink } from "@/lib/whatsapp";
+import { formatRupiah, replacePlaceholders, generateWhatsAppLink, getTemplateForStage } from "@/lib/whatsapp";
 import DataTable from "@/components/DataTable";
 import Modal from "@/components/Modal";
 import KwitansiTemplate from "@/components/KwitansiTemplate";
@@ -45,6 +45,8 @@ export default function TagihanPage() {
     const [togglingAutoBilling, setTogglingAutoBilling] = useState(false);
     const [showLunasWAModal, setShowLunasWAModal] = useState(false);
     const [selectedLunasTagihan, setSelectedLunasTagihan] = useState(null);
+    const [selectedReminderStage, setSelectedReminderStage] = useState("h-3");
+    const [sendingFonnte, setSendingFonnte] = useState(false);
     
     // States for Generate Tagihan
     const [penyewaList, setPenyewaList] = useState([]);
@@ -262,6 +264,15 @@ export default function TagihanPage() {
     const handleDoubleClick = (row) => {
         if (row.status === "belum") {
             setSelectedTagihan(row);
+            const today = new Date().getDate();
+            const jt = parseInt(row.penyewa?.jatuh_tempo, 10) || 10;
+            if (today > jt) {
+                setSelectedReminderStage("overdue");
+            } else if (today === jt) {
+                setSelectedReminderStage("hari-h");
+            } else {
+                setSelectedReminderStage("h-3");
+            }
             setShowPaymentModal(true);
         } else {
             handleShowReceipt(row);
@@ -400,25 +411,18 @@ export default function TagihanPage() {
     };
 
     const sendWhatsAppWithStage = async (tagihan, stage = "normal") => {
+        if (!tagihan) return;
         const data = {
-            nama: tagihan.penyewa.nama,
+            nama: tagihan.penyewa?.nama,
             bulan: tagihan.bulan,
             jumlah: tagihan.jumlah,
-            kamar: tagihan.penyewa.kamar.nomor,
-            jatuh_tempo: tagihan.penyewa.jatuh_tempo,
+            kamar: tagihan.penyewa?.kamar?.nomor,
+            jatuh_tempo: tagihan.penyewa?.jatuh_tempo,
         };
 
-        let templateText = waTemplate;
-        if (stage === "h-3") {
-            templateText = "Halo {nama}, mengingatkan bahwa tagihan sewa kos kamar {kamar} untuk bulan {bulan} sebesar Rp{jumlah} akan jatuh tempo 3 hari lagi pada tanggal {jatuh_tempo}. Terima kasih.";
-        } else if (stage === "hari-h") {
-            templateText = "Halo {nama}, hari ini tanggal {jatuh_tempo} adalah tanggal jatuh tempo pembayaran sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah}. Mohon segera dikonfirmasi. Terima kasih.";
-        } else if (stage === "overdue") {
-            templateText = "Halo {nama}, tagihan sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah} telah lewat dari tanggal jatuh tempo ({jatuh_tempo}). Mohon segera diselesaikan. Terima kasih.";
-        }
-
+        const templateText = getTemplateForStage(waTemplate, stage);
         const message = replacePlaceholders(templateText, data);
-        const link = generateWhatsAppLink(tagihan.penyewa.no_hp, message);
+        const link = generateWhatsAppLink(tagihan.penyewa?.no_hp, message);
 
         await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
         window.open(link, "_blank");
@@ -428,41 +432,41 @@ export default function TagihanPage() {
     const sendWhatsApp = (tagihan) => sendWhatsAppWithStage(tagihan, "normal");
 
     const sendWhatsAppFonnte = async (tagihan, stage = "normal") => {
-        const kosUserId = tagihan.penyewa.kamar.kos.user_id;
-
-        const { data: userData } = await supabase
-            .from("users")
-            .select("wa_api_key")
-            .eq("id", kosUserId)
-            .single();
-
-        if (!userData || !userData.wa_api_key) {
-            alert("Token Fonnte belum diatur. Silakan atur di Pengaturan WhatsApp.");
-            return;
-        }
-
-        const data = {
-            nama: tagihan.penyewa.nama,
-            bulan: tagihan.bulan,
-            jumlah: tagihan.jumlah,
-            kamar: tagihan.penyewa.kamar.nomor,
-            jatuh_tempo: tagihan.penyewa.jatuh_tempo,
-        };
-
-        let templateText = waTemplate;
-        if (stage === "h-3") {
-            templateText = "Halo {nama}, mengingatkan bahwa tagihan sewa kos kamar {kamar} untuk bulan {bulan} sebesar Rp{jumlah} akan jatuh tempo 3 hari lagi pada tanggal {jatuh_tempo}. Terima kasih.";
-        } else if (stage === "hari-h") {
-            templateText = "Halo {nama}, hari ini tanggal {jatuh_tempo} adalah tanggal jatuh tempo pembayaran sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah}. Mohon segera dikonfirmasi. Terima kasih.";
-        } else if (stage === "overdue") {
-            templateText = "Halo {nama}, tagihan sewa kos kamar {kamar} bulan {bulan} sebesar Rp{jumlah} telah lewat dari tanggal jatuh tempo ({jatuh_tempo}). Mohon segera diselesaikan. Terima kasih.";
-        }
-
-        const message = replacePlaceholders(templateText, data);
+        if (!tagihan) return;
+        const kosUserId = tagihan.penyewa?.kamar?.kos?.user_id;
+        setSendingFonnte(true);
 
         try {
+            const { data: userData } = await supabase
+                .from("users")
+                .select("wa_api_key")
+                .eq("id", kosUserId)
+                .single();
+
+            if (!userData || !userData.wa_api_key) {
+                alert("Token Fonnte belum diatur. Silakan atur di Pengaturan WhatsApp.");
+                return;
+            }
+
+            const data = {
+                nama: tagihan.penyewa?.nama,
+                bulan: tagihan.bulan,
+                jumlah: tagihan.jumlah,
+                kamar: tagihan.penyewa?.kamar?.nomor,
+                jatuh_tempo: tagihan.penyewa?.jatuh_tempo,
+            };
+
+            const templateText = getTemplateForStage(waTemplate, stage);
+            const message = replacePlaceholders(templateText, data);
+
+            let targetNumber = tagihan.penyewa?.no_hp || "";
+            targetNumber = targetNumber.replace(/[\s\-\+]/g, "");
+            if (targetNumber.startsWith("08")) {
+                targetNumber = "62" + targetNumber.substring(1);
+            }
+
             const formData = new FormData();
-            formData.append("target", tagihan.penyewa.no_hp);
+            formData.append("target", targetNumber);
             formData.append("message", message);
             formData.append("delay", "2");
 
@@ -475,14 +479,16 @@ export default function TagihanPage() {
             const result = await res.json();
             if (result.status) {
                 await supabase.from("tagihan").update({ tanggal_kirim_wa: new Date().toISOString() }).eq("id", tagihan.id);
-                alert("Pesan WhatsApp berhasil dikirim otomatis via Fonnte!");
+                alert(`Pesan pengingat (${stage.toUpperCase()}) berhasil dikirim via Fonnte!`);
                 fetchTagihan();
             } else {
-                alert("Gagal mengirim pesan: " + (result.reason || "Unknown error"));
+                alert("Gagal mengirim pesan via Fonnte: " + (result.reason || "Unknown error"));
             }
         } catch (error) {
             console.error("Error sending Fonnte WA:", error);
-            alert("Terjadi kesalahan saat mengirim pesan.");
+            alert("Terjadi kesalahan saat mengirim pesan via Fonnte.");
+        } finally {
+            setSendingFonnte(false);
         }
     };
 
@@ -768,46 +774,100 @@ export default function TagihanPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="space-y-2.5 mt-4">
-                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Kirim Pengingat Tagihan (WhatsApp)</label>
+                        <div className="space-y-3 mt-4">
+                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Kirim Pengingat Tagihan (WhatsApp)
+                            </label>
+
+                            {/* Pilihan Tahap Pengingat */}
                             <div className="grid grid-cols-3 gap-2">
                                 <button
-                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, "h-3")}
-                                    className="py-2.5 px-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/25 transition-all text-center"
-                                    title="Kirim pengingat H-3 sebelum jatuh tempo"
+                                    type="button"
+                                    onClick={() => setSelectedReminderStage("h-3")}
+                                    className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all text-center border flex items-center justify-center gap-1.5 ${
+                                        selectedReminderStage === "h-3"
+                                            ? "bg-amber-500/30 border-amber-400 text-amber-200 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20"
+                                            : "bg-amber-500/10 border-amber-500/20 text-amber-300 hover:bg-amber-500/20"
+                                    }`}
+                                    title="Pilih tahap pengingat H-3 sebelum jatuh tempo"
                                 >
-                                    🔔 Pengingat H-3
+                                    <span>🔔</span>
+                                    <span>Pengingat H-3</span>
                                 </button>
                                 <button
-                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, "hari-h")}
-                                    className="py-2.5 px-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/25 transition-all text-center"
-                                    title="Kirim pengingat hari-H jatuh tempo"
+                                    type="button"
+                                    onClick={() => setSelectedReminderStage("hari-h")}
+                                    className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all text-center border flex items-center justify-center gap-1.5 ${
+                                        selectedReminderStage === "hari-h"
+                                            ? "bg-indigo-500/30 border-indigo-400 text-indigo-200 ring-2 ring-indigo-500/50 shadow-lg shadow-indigo-500/20"
+                                            : "bg-indigo-500/10 border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20"
+                                    }`}
+                                    title="Pilih tahap pengingat hari-H jatuh tempo"
                                 >
-                                    📢 Pengingat Hari-H
+                                    <span>📢</span>
+                                    <span>Pengingat Hari-H</span>
                                 </button>
                                 <button
-                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, "overdue")}
-                                    className="py-2.5 px-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold hover:bg-rose-500/25 transition-all text-center"
-                                    title="Kirim teguran tagihan menunggak"
+                                    type="button"
+                                    onClick={() => setSelectedReminderStage("overdue")}
+                                    className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all text-center border flex items-center justify-center gap-1.5 ${
+                                        selectedReminderStage === "overdue"
+                                            ? "bg-rose-500/30 border-rose-400 text-rose-200 ring-2 ring-rose-500/50 shadow-lg shadow-rose-500/20"
+                                            : "bg-rose-500/10 border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+                                    }`}
+                                    title="Pilih tahap teguran tagihan menunggak"
                                 >
-                                    ⚠️ Menunggak
+                                    <span>⚠️</span>
+                                    <span>Menunggak</span>
                                 </button>
                             </div>
 
-                            <div className="flex gap-2 w-full pt-2">
+                            {/* Preview Pesan yang Dipilih */}
+                            <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-700/60 text-xs text-slate-300">
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold mb-1">
+                                    <span>PRATINJAU PESAN ({
+                                        selectedReminderStage === "h-3" ? "H-3 SEBELUM JATUH TEMPO" :
+                                        selectedReminderStage === "hari-h" ? "HARI-H JATUH TEMPO" : "TAGIHAN MENUNGGAK"
+                                    }):</span>
+                                </div>
+                                <p className="italic text-slate-300 leading-relaxed text-[11px]">
+                                    "{replacePlaceholders(getTemplateForStage(waTemplate, selectedReminderStage), {
+                                        nama: selectedTagihan.penyewa?.nama,
+                                        bulan: selectedTagihan.bulan,
+                                        jumlah: selectedTagihan.jumlah,
+                                        kamar: selectedTagihan.penyewa?.kamar?.nomor,
+                                        jatuh_tempo: selectedTagihan.penyewa?.jatuh_tempo,
+                                    })}"
+                                </p>
+                            </div>
+
+                            {/* Tombol Eksekusi Pengiriman */}
+                            <div className="flex gap-2 w-full pt-1">
                                 <button
-                                    onClick={() => sendWhatsAppFonnte(selectedTagihan)}
-                                    className="flex-1 py-3 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#20b858] transition-all shadow-md"
+                                    type="button"
+                                    onClick={() => sendWhatsAppFonnte(selectedTagihan, selectedReminderStage)}
+                                    disabled={sendingFonnte}
+                                    className="flex-1 py-3 px-3 rounded-xl bg-[#25D366] text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#20b858] transition-all shadow-md shadow-[#25D366]/20 disabled:opacity-50"
                                 >
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
-                                    Kirim Otomatis (Fonnte)
+                                    {sendingFonnte ? (
+                                        <>
+                                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Mengirim Fonnte...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /></svg>
+                                            <span>Kirim Otomatis (Fonnte)</span>
+                                        </>
+                                    )}
                                 </button>
                                 <button
-                                    onClick={() => sendWhatsApp(selectedTagihan)}
-                                    className="flex-1 py-3 rounded-xl bg-[#25D366]/10 text-[#25D366] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/20"
+                                    type="button"
+                                    onClick={() => sendWhatsAppWithStage(selectedTagihan, selectedReminderStage)}
+                                    className="flex-1 py-3 px-3 rounded-xl bg-[#25D366]/10 text-[#25D366] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#25D366]/20 transition-all border border-[#25D366]/30"
                                 >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                    Buka WA.me
+                                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                    <span>Buka WA.me</span>
                                 </button>
                             </div>
                         </div>

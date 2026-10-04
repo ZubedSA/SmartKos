@@ -73,7 +73,7 @@ export default function KelolaHubPage() {
         {
             title: "Kata Sandi",
             desc: "Ubah password akun secara berkala",
-            href: "/dashboard/akun",
+            href: "/dashboard/akun?action=password",
             color: "amber",
             icon: (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

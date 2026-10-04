@@ -390,50 +390,63 @@ export default function BackupPage() {
                         )}
 
                         {/* File Preview Card */}
-                        {filePayload && (
-                            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 mb-4 space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">File Backup Valid</span>
-                                    <span className="text-[10px] text-slate-400">{filePayload.exported_at ? new Date(filePayload.exported_at).toLocaleDateString('id-ID') : '-'}</span>
-                                </div>
-                                <div className="text-xs text-slate-300 space-y-1">
-                                    <p><strong className="text-white">Pemilik Asli:</strong> {filePayload.owner?.name || '-'} ({filePayload.owner?.email || '-'})</p>
-                                    <p><strong className="text-white">Isi Cadangan:</strong> {filePayload.summary?.total_kos || 0} Kos, {filePayload.summary?.total_kamar || 0} Kamar, {filePayload.summary?.total_penyewa || 0} Penyewa, {filePayload.summary?.total_tagihan || 0} Tagihan, {filePayload.summary?.total_operasional || 0} Operasional</p>
-                                </div>
+                        {filePayload && (() => {
+                            const kosCount = filePayload.summary?.total_kos ?? filePayload.data?.kos?.length ?? 0;
+                            const kamarCount = filePayload.summary?.total_kamar ?? filePayload.data?.kamar?.length ?? 0;
+                            const penyewaCount = filePayload.summary?.total_penyewa ?? filePayload.data?.penyewa?.length ?? 0;
+                            const tagihanCount = filePayload.summary?.total_tagihan ?? filePayload.data?.tagihan?.length ?? 0;
+                            const operasionalCount = filePayload.summary?.total_operasional ?? filePayload.data?.operasional?.length ?? 0;
+                            const ownerName = filePayload.owner?.name || filePayload.exportedBy || "Pengguna SmartKos";
+                            const ownerEmail = filePayload.owner?.email || filePayload.email || "-";
+                            const exportDateStr = filePayload.exported_at || filePayload.backupDate;
 
-                                {/* Mode Selection */}
-                                <div className="pt-2 border-t border-emerald-500/20">
-                                    <label className="block text-xs font-bold text-white mb-2">Pilih Mode Restore:</label>
-                                    <div className="grid grid-cols-2 gap-2 text-xs">
-                                        <button
-                                            type="button"
-                                            onClick={() => setRestoreMode("replace")}
-                                            className={`p-2.5 rounded-xl border text-left transition-all ${
-                                                restoreMode === "replace"
-                                                    ? "bg-red-500/20 border-red-500/50 text-red-300 font-bold"
-                                                    : "bg-slate-800 border-slate-700 text-slate-400"
-                                            }`}
-                                        >
-                                            <span className="block text-[11px] text-white font-bold mb-0.5">⚡ Timpa (Replace)</span>
-                                            <span className="text-[9px] leading-tight block text-slate-300">Hapus data saat ini & ganti total</span>
-                                        </button>
+                            return (
+                                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 mb-4 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">File Backup Valid</span>
+                                        <span className="text-[10px] text-slate-400">
+                                            {exportDateStr ? new Date(exportDateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-slate-300 space-y-1">
+                                        <p><strong className="text-white">Pemilik Asli:</strong> {ownerName} ({ownerEmail})</p>
+                                        <p><strong className="text-white">Isi Cadangan:</strong> {kosCount} Kos, {kamarCount} Kamar, {penyewaCount} Penyewa, {tagihanCount} Tagihan, {operasionalCount} Operasional</p>
+                                    </div>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => setRestoreMode("merge")}
-                                            className={`p-2.5 rounded-xl border text-left transition-all ${
-                                                restoreMode === "merge"
-                                                    ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300 font-bold"
-                                                    : "bg-slate-800 border-slate-700 text-slate-400"
-                                            }`}
-                                        >
-                                            <span className="block text-[11px] text-white font-bold mb-0.5">🔄 Gabungkan (Merge)</span>
-                                            <span className="text-[9px] leading-tight block text-slate-300">Tambahkan data tanpa menghapus</span>
-                                        </button>
+                                    {/* Mode Selection */}
+                                    <div className="pt-2 border-t border-emerald-500/20">
+                                        <label className="block text-xs font-bold text-white mb-2">Pilih Mode Restore:</label>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRestoreMode("replace")}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${
+                                                    restoreMode === "replace"
+                                                        ? "bg-red-500/20 border-red-500/50 text-red-300 font-bold"
+                                                        : "bg-slate-800 border-slate-700 text-slate-400"
+                                                }`}
+                                            >
+                                                <span className="block text-[11px] text-white font-bold mb-0.5">⚡ Timpa (Replace)</span>
+                                                <span className="text-[9px] leading-tight block text-slate-300">Hapus data saat ini & ganti total</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setRestoreMode("merge")}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${
+                                                    restoreMode === "merge"
+                                                        ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300 font-bold"
+                                                        : "bg-slate-800 border-slate-700 text-slate-400"
+                                                }`}
+                                            >
+                                                <span className="block text-[11px] text-white font-bold mb-0.5">🔄 Gabungkan (Merge)</span>
+                                                <span className="text-[9px] leading-tight block text-slate-300">Tambahkan data tanpa menghapus</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                     </div>
 
                     <button

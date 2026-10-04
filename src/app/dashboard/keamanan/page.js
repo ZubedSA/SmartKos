@@ -135,51 +135,22 @@ export default function KeamananPage() {
         addLog("Ekspor Backup Sistem", "Memulai pencadangan data basis data SmartKos...", "success");
 
         try {
-            // Fetch live data from tables
-            const { data: kosList } = await supabase.from("kos").select("*").eq("user_id", user.id);
-            const kosIds = kosList?.map(k => k.id) || [];
+            const res = await fetch("/api/backup/export", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: user.id })
+            });
 
-            let kamarList = [];
-            let penyewaList = [];
-            let tagihanList = [];
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Gagal mengunduh data backup");
 
-            if (kosIds.length > 0) {
-                const { data: kamar } = await supabase.from("kamar").select("*").in("kos_id", kosIds);
-                kamarList = kamar || [];
-                const kamarIds = kamarList.map(km => km.id);
-
-                if (kamarIds.length > 0) {
-                    const { data: penyewa } = await supabase.from("penyewa").select("*").in("kamar_id", kamarIds);
-                    penyewaList = penyewa || [];
-                    const penyewaIds = penyewaList.map(p => p.id);
-
-                    if (penyewaIds.length > 0) {
-                        const { data: tagihan } = await supabase.from("tagihan").select("*").in("penyewa_id", penyewaIds);
-                        tagihanList = tagihan || [];
-                    }
-                }
-            }
-
-            const backupObject = {
-                app: "SmartKos",
-                version: "1.0.0",
-                backupDate: new Date().toISOString(),
-                exportedBy: user.name,
-                email: user.email,
-                data: {
-                    kos: kosList,
-                    kamar: kamarList,
-                    penyewa: penyewaList,
-                    tagihan: tagihanList
-                }
-            };
-
-            // Trigger actual browser download
-            const blob = new Blob([JSON.stringify(backupObject, null, 4)], { type: "application/json" });
+            const blob = new Blob([JSON.stringify(data.backupPayload, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `SmartKos_Backup_${new Date().toISOString().split("T")[0]}.json`;
+            const dateStr = new Date().toISOString().split("T")[0];
+            const cleanName = (user.name || "User").replace(/[^a-zA-Z0-9]/g, "_");
+            a.download = `SmartKos_Backup_${cleanName}_${dateStr}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -189,7 +160,7 @@ export default function KeamananPage() {
         } catch (error) {
             console.error("Gagal melakukan ekspor data:", error);
             addLog("Ekspor Backup Sistem", "Gagal memproses ekspor data: " + error.message, "error");
-            alert("Gagal mengekspor data cadangan.");
+            alert("Gagal mengekspor data cadangan: " + error.message);
         } finally {
             setExporting(false);
         }
